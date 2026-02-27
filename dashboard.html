@@ -268,6 +268,43 @@ body {
 .pf-green { background: #22c55e; }
 .pf-gradient { background: linear-gradient(90deg,#22c55e,#eab308,#ef4444); }
 
+/* ── POSITION PROGRESS BAR ───────────── */
+.pos-progress-wrap {
+  padding: 12px 18px 10px;
+  border-bottom: 1px solid #141414;
+  background: #0d0d0d;
+}
+.pos-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #444;
+  margin-bottom: 6px;
+}
+.pos-progress-bar {
+  height: 5px;
+  background: #1a1a1a;
+  border-radius: 3px;
+  overflow: visible;
+  position: relative;
+}
+.pos-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  position: relative;
+}
+.pos-progress-markers {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #333;
+  margin-top: 4px;
+}
+.marker-be { color: #eab308; }
+.marker-trail { color: #3b82f6; }
+.marker-tp { color: #22c55e; }
+
 /* ── CONTROL BUTTONS ─────────────────── */
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn {
@@ -443,10 +480,10 @@ body {
           </div>
           <table class="tbl">
             <thead>
-              <tr><th>Symbol</th><th>Side</th><th>Entry</th><th>PnL</th><th>SL</th><th>Age</th></tr>
+              <tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Current</th><th>PnL</th><th>Progress</th><th>Age</th></tr>
             </thead>
             <tbody id="o-pos-body">
-              <tr><td colspan="6" class="tbl-empty">No open positions</td></tr>
+              <tr><td colspan="7" class="tbl-empty">No open positions</td></tr>
             </tbody>
           </table>
         </div>
@@ -519,10 +556,10 @@ body {
         <div class="panel-head"><span class="panel-label">Active Positions</span></div>
         <table class="tbl">
           <thead>
-            <tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Current</th><th>PnL</th><th>PnL%</th><th>Stop Loss</th><th>Take Profit</th><th>Age</th></tr>
+            <tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Current</th><th>PnL</th><th>PnL%</th><th>SL</th><th>TP</th><th>Progress</th><th>Status</th><th>Age</th></tr>
           </thead>
           <tbody id="p-body">
-            <tr><td colspan="9" class="tbl-empty">No open positions</td></tr>
+            <tr><td colspan="11" class="tbl-empty">No open positions</td></tr>
           </tbody>
         </table>
       </div>
@@ -724,7 +761,7 @@ body {
 
 <script>
 const API = '/api/proxy';
-let prevTrades = [], charts = {}, txHistory = [];
+let prevTrades = [], charts = {}, txHistory = [], lastPositions = [];
 
 // Clock
 setInterval(() => {
@@ -825,18 +862,8 @@ function updateOverview(s, perf, tradesData) {
   document.getElementById('o-wstreak').textContent = p.winning_trades||0;
   document.getElementById('o-lstreak').textContent = p.losing_trades||0;
 
-  // Positions table in overview
-  const pos = s.positions||[];
-  const ob = document.getElementById('o-pos-body');
-  if(!pos.length) { ob.innerHTML=`<tr><td colspan="6" class="tbl-empty">No open positions</td></tr>`; }
-  else ob.innerHTML = pos.map(p => `<tr>
-    <td style="font-weight:500">${p.symbol}</td>
-    <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${p.side==='Buy'?'LONG':'SHORT'}</span></td>
-    <td>${(p.entry_price||0).toFixed(4)}</td>
-    <td class="${(p.unrealized_pnl||0)>=0?'c-green':'c-red'}">${(p.unrealized_pnl||0)>=0?'+':''}$${(p.unrealized_pnl||0).toFixed(4)}</td>
-    <td class="c-gray">${(p.stop_loss||0).toFixed(4)}</td>
-    <td class="c-gray">${getAge(p.opened_at)}</td>
-  </tr>`).join('');
+  // Positions table in overview — diisi dari updatePositions via lastPositions
+  renderOverviewPositions(lastPositions);
 
   // Bot status
   const running = s.bot?.is_running;
@@ -852,9 +879,59 @@ function updateOverview(s, perf, tradesData) {
   document.getElementById('sc-approved').textContent = p.total_trades||0;
 }
 
+// RENDER OVERVIEW POSITIONS (dengan current price realtime + progress bar)
+function renderOverviewPositions(pos) {
+  const ob = document.getElementById('o-pos-body');
+  if(!pos||!pos.length) {
+    ob.innerHTML=`<tr><td colspan="7" class="tbl-empty">No open positions</td></tr>`;
+    return;
+  }
+  ob.innerHTML = pos.map(p => {
+    const pnl = p.unrealized_pnl||0;
+    const entry = parseFloat(p.entry_price||0);
+    const cur = parseFloat(p.current_price||entry);
+    const sl = parseFloat(p.stop_loss||0);
+    const tp = parseFloat(p.take_profit||0);
+    const beDone = p.be_done||false;
+    const trailSL = parseFloat(p.trailing_sl||0);
+    const side = p.side==='Buy'?'LONG':'SHORT';
+
+    // Progress bar: jarak entry→TP, posisi current
+    let pct = 0, barColor = '#3b82f6', statusLabel = 'Active';
+    if(entry && tp && sl) {
+      const totalRange = Math.abs(tp - entry);
+      const curMove = side==='LONG' ? (cur - entry) : (entry - cur);
+      pct = totalRange > 0 ? Math.max(0, Math.min(100, (curMove/totalRange)*100)) : 0;
+      if(trailSL > 0) { barColor='#3b82f6'; statusLabel='Trailing'; }
+      else if(beDone) { barColor='#eab308'; statusLabel='Break-Even'; }
+      else if(pct < 0) { barColor='#ef4444'; statusLabel='In Loss'; }
+      else { barColor='#22c55e'; statusLabel='Profit'; }
+    }
+
+    return `<tr>
+      <td style="font-weight:500">${p.symbol}</td>
+      <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${side}</span></td>
+      <td>${entry.toFixed(4)}</td>
+      <td style="font-family:monospace">${cur.toFixed(4)}</td>
+      <td class="${pnl>=0?'c-green':'c-red'}">${pnl>=0?'+':''}$${pnl.toFixed(4)}</td>
+      <td style="min-width:100px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:2px;transition:width 0.5s"></div>
+          </div>
+          <span style="font-size:9px;color:${barColor};white-space:nowrap">${statusLabel}</span>
+        </div>
+      </td>
+      <td class="c-gray">${getAge(p.opened_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
 // POSITIONS
 function updatePositions(data, status) {
   const pos = data.positions||[];
+  lastPositions = pos;
+  renderOverviewPositions(pos);
   const unreal = pos.reduce((s,p)=>s+(p.unrealized_pnl||0),0);
   document.getElementById('p-count').textContent = `${pos.length}/1`;
   const ur = document.getElementById('p-unreal');
@@ -862,18 +939,44 @@ function updatePositions(data, status) {
   ur.className = `stat-value ${unreal>=0?'c-green':'c-red'}`;
 
   const body = document.getElementById('p-body');
-  if(!pos.length) { body.innerHTML=`<tr><td colspan="9" class="tbl-empty">No open positions</td></tr>`; return; }
+  if(!pos.length) { body.innerHTML=`<tr><td colspan="11" class="tbl-empty">No open positions</td></tr>`; return; }
   body.innerHTML = pos.map(p => {
-    const pnl = p.unrealized_pnl||0, entry = p.entry_price||0, cur = p.current_price||entry;
-    const pct = entry?((cur-entry)/entry*100*(p.side==='Buy'?1:-1)).toFixed(2):'0.00';
+    const pnl = p.unrealized_pnl||0;
+    const entry = parseFloat(p.entry_price||0);
+    const cur = parseFloat(p.current_price||entry);
+    const sl = parseFloat(p.stop_loss||0);
+    const tp = parseFloat(p.take_profit||0);
+    const beDone = p.be_done||false;
+    const trailSL = parseFloat(p.trailing_sl||0);
+    const side = p.side==='Buy'?'LONG':'SHORT';
+    const pnlPct = entry?((cur-entry)/entry*100*(p.side==='Buy'?1:-1)).toFixed(2):'0.00';
+
+    let pct=0, barColor='#3b82f6', statusLabel='Active';
+    if(entry && tp && sl) {
+      const totalRange = Math.abs(tp-entry);
+      const curMove = side==='LONG'?(cur-entry):(entry-cur);
+      pct = totalRange>0?Math.max(0,Math.min(100,(curMove/totalRange)*100)):0;
+      if(trailSL>0){barColor='#3b82f6';statusLabel='Trailing';}
+      else if(beDone){barColor='#eab308';statusLabel='Break-Even';}
+      else if(pct<0){barColor='#ef4444';statusLabel='In Loss';}
+      else{barColor='#22c55e';statusLabel='Profit';}
+    }
     return `<tr>
       <td style="font-weight:500">${p.symbol}</td>
-      <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${p.side==='Buy'?'LONG':'SHORT'}</span></td>
-      <td>${entry.toFixed(4)}</td><td>${cur.toFixed(4)}</td>
+      <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${side}</span></td>
+      <td>${entry.toFixed(4)}</td>
+      <td style="font-family:monospace">${cur.toFixed(4)}</td>
       <td class="${pnl>=0?'c-green':'c-red'}">${pnl>=0?'+':''}$${pnl.toFixed(4)}</td>
-      <td class="${pnl>=0?'c-green':'c-red'}">${pct}%</td>
-      <td class="c-gray">${(p.stop_loss||0).toFixed(4)}</td>
-      <td class="c-gray">${(p.take_profit||0).toFixed(4)}</td>
+      <td class="${pnl>=0?'c-green':'c-red'}">${pnlPct}%</td>
+      <td class="c-gray">${sl.toFixed(4)}</td>
+      <td class="c-gray">${tp.toFixed(4)}</td>
+      <td style="min-width:80px">
+        <div style="height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${barColor};transition:width 0.5s"></div>
+        </div>
+        <div style="font-size:9px;margin-top:3px;color:${barColor}">${pct.toFixed(0)}%</div>
+      </td>
+      <td style="font-size:11px;color:${barColor}">${statusLabel}</td>
       <td class="c-gray">${getAge(p.opened_at)}</td>
     </tr>`;
   }).join('');
@@ -1021,8 +1124,9 @@ async function fetchAI() {
 function updateControl(s, tradesData) {
   const mode = s.bot?.mode||'paper';
   document.getElementById('c-mode').textContent = mode.toUpperCase();
-  document.getElementById('c-run').textContent = s.bot?.is_running?'Running':'Stopped';
-  document.getElementById('c-run').className = `perf-v ${s.bot?.is_running?'c-green':'c-red'}`;
+  const isRun = s.bot?.is_running;
+  document.getElementById('c-run').textContent = isRun ? '● ON' : '○ OFF';
+  document.getElementById('c-run').className = `perf-v ${isRun?'c-green':'c-red'}`;
   document.getElementById('c-bal').textContent = `$${(s.balance?.current||0).toFixed(4)}`;
   document.getElementById('c-pos').textContent = `${(s.positions||[]).length||0}/1`;
   document.getElementById('c-trades').textContent = s.performance?.total_trades||0;
