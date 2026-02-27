@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALGO v2 — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #04050f;
+  color: #e8ecff;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(99,120,255,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 70% 80%, rgba(155,89,255,0.06) 0%, transparent 60%);
+  pointer-events:none;
+}
+.box {
+  background: rgba(12,17,40,0.95);
+  border: 1px solid rgba(99,120,255,0.2);
+  border-radius: 24px;
+  padding: 48px;
+  width: 400px;
+  position: relative;
+  z-index: 2;
+  animation: fadeUp 0.5s ease;
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+.logo { text-align:center; margin-bottom:40px; }
+.logo-icon {
+  width:56px; height:56px;
+  background: linear-gradient(135deg,#6378ff,#9b59ff);
+  border-radius:16px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Syne',sans-serif; font-weight:800; font-size:22px; color:white;
+  margin:0 auto 16px;
+  box-shadow:0 0 30px rgba(99,120,255,0.4);
+}
+.logo-title { font-family:'Syne',sans-serif; font-weight:800; font-size:24px; background:linear-gradient(135deg,#8b9fff,#b87fff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.logo-sub { font-size:10px; color:#4a5278; letter-spacing:3px; text-transform:uppercase; margin-top:4px; }
+label { display:block; font-size:10px; color:#4a5278; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+input {
+  width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(99,120,255,0.2);
+  border-radius:10px; padding:14px 16px; font-family:'Space Mono',monospace; font-size:16px;
+  color:#e8ecff; outline:none; transition:all 0.2s; margin-bottom:24px; letter-spacing:4px;
+}
+input:focus { border-color:rgba(99,120,255,0.5); box-shadow:0 0 20px rgba(99,120,255,0.1); }
+button {
+  width:100%; padding:14px;
+  background:linear-gradient(135deg,rgba(99,120,255,0.8),rgba(155,89,255,0.8));
+  border:none; border-radius:10px; font-family:'Syne',sans-serif; font-weight:700;
+  font-size:14px; letter-spacing:2px; color:white; cursor:pointer; transition:all 0.2s; text-transform:uppercase;
+}
+button:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(99,120,255,0.4); }
+button:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+.error { margin-top:16px; padding:12px; background:rgba(255,77,106,0.1); border:1px solid rgba(255,77,106,0.3); border-radius:8px; font-size:12px; color:#ff4d6a; text-align:center; display:none; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+.shake { animation:shake 0.4s ease; }
+</style>
+</head>
+<body>
+<div class="box" id="box">
+  <div class="logo">
+    <div class="logo-icon">A2</div>
+    <div class="logo-title">ALGO v2.0</div>
+    <div class="logo-sub">Trading Terminal</div>
+  </div>
+  <label>Access Password</label>
+  <input type="password" id="pwd" placeholder="••••••" autofocus onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()" id="btn">ACCESS TERMINAL</button>
+  <div class="error" id="err">Invalid password.</div>
+</div>
+<script>
+async function login() {
+  const pwd = document.getElementById('pwd').value;
+  if(!pwd) return;
+  const btn = document.getElementById('btn');
+  btn.textContent = 'AUTHENTICATING...';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/auth', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pwd})});
+    if(r.ok) {
+      const d = await r.json();
+      sessionStorage.setItem('auth_token', d.token);
+      window.location.href = '/dashboard';
+    } else {
+      document.getElementById('err').style.display = 'block';
+      document.getElementById('box').classList.add('shake');
+      setTimeout(()=>document.getElementById('box').classList.remove('shake'),400);
+      btn.textContent = 'ACCESS TERMINAL';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    document.getElementById('err').textContent = 'Connection error.';
+    document.getElementById('err').style.display = 'block';
+    btn.textContent = 'ACCESS TERMINAL';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
