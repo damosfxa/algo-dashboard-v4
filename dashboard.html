@@ -405,6 +405,65 @@ body {
 .tx-deposit { color: #22c55e; }
 .tx-withdraw { color: #ef4444; }
 .tx-trade { color: #3b82f6; }
+
+/* ── ANTI COPY ───────────────────────────── */
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+/* Allow select on input only */
+input, textarea { user-select: text; }
+
+/* ── MODAL ───────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  border-radius: 8px;
+  width: 480px;
+  max-width: 95vw;
+  overflow: hidden;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.modal-title { font-size: 13px; font-weight: 500; color: #fff; }
+.modal-close {
+  font-size: 18px;
+  color: #444;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.modal-close:hover { color: #fff; background: #1a1a1a; }
+.modal-body { padding: 16px 18px; }
+.modal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #141414;
+  font-size: 13px;
+}
+.modal-row:last-child { border-bottom: none; }
+.modal-k { color: #555; }
+.modal-v { color: #ccc; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -942,7 +1001,7 @@ function renderOverviewPositions(pos) {
       else { barColor='#22c55e'; statusLabel='Profit'; }
     }
 
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="openPosModal(${JSON.stringify(p).replace(/'/g, '&#39;')})">
       <td style="font-weight:500">${p.symbol}</td>
       <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${side}</span></td>
       <td>${entry.toFixed(4)}</td>
@@ -951,9 +1010,9 @@ function renderOverviewPositions(pos) {
       <td style="min-width:100px">
         <div style="display:flex;align-items:center;gap:6px">
           <div style="flex:1;height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:2px;transition:width 0.5s"></div>
+            <div style="width:${Math.max(0,pct).toFixed(1)}%;height:100%;background:${barColor};border-radius:2px;transition:width 0.5s"></div>
           </div>
-          <span style="font-size:9px;color:${barColor};white-space:nowrap">${statusLabel}</span>
+          <span style="font-size:9px;color:${barColor};white-space:nowrap;min-width:40px;text-align:right">${statusLabel||pct.toFixed(1)+'%'}</span>
         </div>
       </td>
       <td class="c-gray">${getAge(p.opened_at)}</td>
@@ -998,7 +1057,7 @@ function updatePositions(data, status) {
       else if(curMove<0){barColor='#ef4444';statusLabel='In Loss';}
       else{barColor='#22c55e';statusLabel='Profit';}
     }
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="openPosModal(${JSON.stringify(p).replace(/'/g, '&#39;')})">
       <td style="font-weight:500">${p.symbol}</td>
       <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${side}</span></td>
       <td>${entry.toFixed(4)}</td>
@@ -1007,13 +1066,16 @@ function updatePositions(data, status) {
       <td class="${pnl>=0?'c-green':'c-red'}">${pnlPct}%</td>
       <td class="c-gray">${sl.toFixed(4)}</td>
       <td class="c-gray">${tp.toFixed(4)}</td>
-      <td style="min-width:80px">
-        <div style="height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden">
-          <div style="width:${pct}%;height:100%;background:${barColor};transition:width 0.5s"></div>
+      <td style="min-width:100px">
+        <div style="height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden;position:relative">
+          <div style="position:absolute;left:${pct<0?Math.max(0,50+pct/2)+'%':'0'};width:${Math.abs(pct).toFixed(1)}%;height:100%;background:${barColor};border-radius:2px;transition:all 0.5s;max-width:100%"></div>
         </div>
-        <div style="font-size:9px;margin-top:3px;color:${barColor}">${pct.toFixed(0)}%</div>
+        <div style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="font-size:9px;color:${barColor}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>
+          <span style="font-size:9px;color:${barColor}">${statusLabel}</span>
+        </div>
       </td>
-      <td style="font-size:11px;color:${barColor}">${statusLabel}</td>
+      <td></td>
       <td class="c-gray">${getAge(p.opened_at)}</td>
     </tr>`;
   }).join('');
@@ -1201,11 +1263,14 @@ function updateControl(s, tradesData) {
 
 async function botCmd(action) {
   try {
-    await fetch(`${API}?path=${action}`, {method:'POST'});
-    const labels = {'start':'Bot started','emergency-stop':'Bot stopped','reset-daily':'Daily reset'};
-    notify(labels[action]||action, '', 'info');
-    setTimeout(fetchAll, 1000);
-  } catch(e) { notify('Error', e.message, 'loss'); }
+    const opts = {method:'POST', headers:{'Content-Type':'application/json'}};
+    if(action==='emergency-stop') opts.body = JSON.stringify({reason:'Manual stop via dashboard'});
+    const r = await fetch(`${API}?path=${action}`, opts);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const labels = {'start':'Bot started ▶','emergency-stop':'Bot stopped ⬛','reset-daily':'Daily stats reset ↺'};
+    notify(labels[action]||action, '', action==='emergency-stop'?'loss':'info');
+    setTimeout(fetchAll, 1500);
+  } catch(e) { notify('Error: '+action, e.message, 'loss'); }
 }
 
 // HELPERS
@@ -1226,6 +1291,61 @@ function getDur(a,b) {
 
 fetchAll();
 setInterval(fetchAll, 30000);
+
+// Anti-copy
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey) && ['c','a','s','u','p'].includes(e.key.toLowerCase())) e.preventDefault();
+});
+
+// Modal functions
+function openPosModal(pos) {
+  const side = pos.side==='Buy'?'LONG':'SHORT';
+  const pnl = pos.unrealized_pnl||0;
+  const entry = parseFloat(pos.entry_price||0);
+  const cur = parseFloat(pos.current_price||entry);
+  const sl = parseFloat(pos.stop_loss||0);
+  const tp = parseFloat(pos.take_profit||0);
+  const trailSL = parseFloat(pos.trailing_sl||0);
+  const pnlPct = pos.unrealized_pnl_pct||0;
+  const status = trailSL>0?'Trailing Stop':(pos.be_done?'Break-Even':'Active');
+
+  document.getElementById('modal-symbol').innerHTML =
+    \`\${pos.symbol} <span class="badge \${pos.side==='Buy'?'badge-long':'badge-short'}" style="margin-left:8px">\${side}</span>\`;
+
+  document.getElementById('modal-body').innerHTML = \`
+    <div class="modal-row"><span class="modal-k">Strategy</span><span class="modal-v" style="font-size:11px">\${pos.strategy||'—'}</span></div>
+    <div class="modal-row"><span class="modal-k">Entry Price</span><span class="modal-v">\${entry.toFixed(6)}</span></div>
+    <div class="modal-row"><span class="modal-k">Current Price</span><span class="modal-v">\${cur.toFixed(6)}</span></div>
+    <div class="modal-row"><span class="modal-k">Quantity</span><span class="modal-v">\${(pos.quantity||0).toFixed(2)}</span></div>
+    <div class="modal-row"><span class="modal-k">Leverage</span><span class="modal-v c-yellow">\${pos.leverage||1}x</span></div>
+    <div class="modal-row"><span class="modal-k">Margin Used</span><span class="modal-v">\$\${(pos.margin||0).toFixed(4)}</span></div>
+    <div class="modal-row"><span class="modal-k">Unrealized PnL</span><span class="modal-v \${pnl>=0?'c-green':'c-red'}">\${pnl>=0?'+':''}\$\${pnl.toFixed(4)} (\${pnlPct.toFixed(2)}%)</span></div>
+    <div class="modal-row"><span class="modal-k">Stop Loss</span><span class="modal-v c-red">\${sl.toFixed(6)}</span></div>
+    <div class="modal-row"><span class="modal-k">Take Profit</span><span class="modal-v c-green">\${tp.toFixed(6)}</span></div>
+    <div class="modal-row"><span class="modal-k">Trailing SL</span><span class="modal-v c-blue">\${trailSL>0?trailSL.toFixed(6):'—'}</span></div>
+    <div class="modal-row"><span class="modal-k">Signal Score</span><span class="modal-v">\${(pos.signal_score||0).toFixed(3)}</span></div>
+    <div class="modal-row"><span class="modal-k">Status</span><span class="modal-v">\${status}</span></div>
+    <div class="modal-row"><span class="modal-k">Opened</span><span class="modal-v c-gray" style="font-size:11px">\${pos.opened_at?new Date(pos.opened_at).toLocaleString('id-ID'):'—'}</span></div>
+    <div class="modal-row"><span class="modal-k">Age</span><span class="modal-v">\${getAge(pos.opened_at)}</span></div>
+  \`;
+  document.getElementById('pos-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('pos-modal').classList.remove('open');
+}
 </script>
+
+<!-- POSITION DETAIL MODAL -->
+<div class="modal-overlay" id="pos-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="modal-symbol">Position Detail</span>
+      <span class="modal-close" onclick="closeModal()">×</span>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
 </body>
 </html>
