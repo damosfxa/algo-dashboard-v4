@@ -821,6 +821,28 @@ input, textarea { user-select: text; }
 <script>
 const API = '/api/proxy';
 let prevTrades = [], charts = {}, txHistory = [], lastPositions = [];
+let scanCounterDay = null, scanCounter = {scanned:0,signals:0,regime:0,corr:0,rejected:0,approved:0};
+
+function getScanCounter() {
+  var today = new Date().toDateString();
+  if(scanCounterDay !== today) {
+    scanCounterDay = today;
+    scanCounter = {scanned:0,signals:0,regime:0,corr:0,rejected:0,approved:0};
+    try { localStorage.setItem('scanDay', today); localStorage.setItem('scanData', JSON.stringify(scanCounter)); } catch(e) {}
+  }
+  return scanCounter;
+}
+function updateScanCounter(data) {
+  var sc = getScanCounter();
+  // Setiap fetchAll = 1 scan cycle
+  if(data && data.count !== undefined) {
+    sc.scanned = data.count||0;
+    sc.signals = data.count||0;
+    sc.approved = data.count||0;
+  }
+  try { localStorage.setItem('scanData', JSON.stringify(sc)); } catch(e) {}
+  return sc;
+}
 
 // Clock
 setInterval(() => {
@@ -954,14 +976,15 @@ function updateOverview(s, perf, tradesData, posData) {
   // Update topbar balance realtime (termasuk unrealized)
   document.getElementById('tb-bal') && (document.getElementById('tb-bal').textContent = `$${realtimeBal.toFixed(4)}`);
 
-  // Scan stats
-  const scanStats = s.scan_stats||{};
-  document.getElementById('sc-total').textContent = scanStats.scanned||p.total_trades||0;
-  document.getElementById('sc-signals').textContent = scanStats.signals||p.total_trades||0;
-  document.getElementById('sc-regime').textContent = scanStats.regime_skip||0;
-  document.getElementById('sc-corr').textContent = scanStats.corr_skip||0;
-  document.getElementById('sc-rejected').textContent = scanStats.ai_rejected||0;
-  document.getElementById('sc-approved').textContent = scanStats.approved||p.total_trades||0;
+  // Scan stats — ambil dari state.scan_stats jika ada
+  const scanStats = s.scan_stats || s.today_stats || {};
+  const todayTrades = p.total_trades || 0;
+  document.getElementById('sc-total').textContent = scanStats.total_scanned || scanStats.scanned || todayTrades;
+  document.getElementById('sc-signals').textContent = scanStats.signals_found || scanStats.signals || todayTrades;
+  document.getElementById('sc-regime').textContent = scanStats.regime_skip || scanStats.regime_skipped || 0;
+  document.getElementById('sc-corr').textContent = scanStats.corr_skip || scanStats.correlation_skip || 0;
+  document.getElementById('sc-rejected').textContent = scanStats.ai_rejected || scanStats.rejected || 0;
+  document.getElementById('sc-approved').textContent = scanStats.approved || todayTrades;
 }
 
 // RENDER OVERVIEW POSITIONS (dengan current price realtime + progress bar)
@@ -971,7 +994,8 @@ function renderOverviewPositions(pos) {
     ob.innerHTML=`<tr><td colspan="7" class="tbl-empty">No open positions</td></tr>`;
     return;
   }
-  ob.innerHTML = pos.map(p => {
+  window._posCache = pos;
+  ob.innerHTML = pos.map((p, i) => {
     const pnl = p.unrealized_pnl||0;
     const entry = parseFloat(p.entry_price||0);
     const cur = parseFloat(p.current_price||entry);
@@ -995,13 +1019,13 @@ function renderOverviewPositions(pos) {
       // pct = 0% di SL, 50% di entry, 100% di TP
       const rawProgress = (curMove + slDist) / totalRange;
       pct = Math.max(0, Math.min(100, rawProgress * 100));
-      if(trailSL > 0) { barColor='#3b82f6'; statusLabel='Trailing'; }
-      else if(beDone) { barColor='#eab308'; statusLabel='Break-Even'; }
+      if(beDone) { barColor='#eab308'; statusLabel='BE'; }
+      else if(trailSL > 0) { barColor='#3b82f6'; statusLabel='Trailing'; }
       else if(curMove < 0) { barColor='#ef4444'; statusLabel='In Loss'; }
       else { barColor='#22c55e'; statusLabel='Profit'; }
     }
 
-    return `<tr style="cursor:pointer" onclick="openPosModal(${JSON.stringify(p).replace(/'/g, '&#39;')})">
+    return `<tr style="cursor:pointer;transition:background 0.1s" onclick="openPosModal(window._posCache&&window._posCache[${i}])" onmouseenter="this.style.background='#161616'" onmouseleave="this.style.background=''">
       <td style="font-weight:500">${p.symbol}</td>
       <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${side}</span></td>
       <td>${entry.toFixed(4)}</td>
@@ -1033,7 +1057,7 @@ function updatePositions(data, status) {
 
   const body = document.getElementById('p-body');
   if(!pos.length) { body.innerHTML=`<tr><td colspan="11" class="tbl-empty">No open positions</td></tr>`; return; }
-  body.innerHTML = pos.map(p => {
+  body.innerHTML = pos.map((p, i) => {
     const pnl = p.unrealized_pnl||0;
     const entry = parseFloat(p.entry_price||0);
     const cur = parseFloat(p.current_price||entry);
@@ -1057,7 +1081,7 @@ function updatePositions(data, status) {
       else if(curMove<0){barColor='#ef4444';statusLabel='In Loss';}
       else{barColor='#22c55e';statusLabel='Profit';}
     }
-    return `<tr style="cursor:pointer" onclick="openPosModal(${JSON.stringify(p).replace(/'/g, '&#39;')})">
+    return `<tr style="cursor:pointer;transition:background 0.1s" onclick="openPosModal(window._posCache&&window._posCache[${i}])" onmouseenter="this.style.background='#161616'" onmouseleave="this.style.background=''">
       <td style="font-weight:500">${p.symbol}</td>
       <td><span class="badge ${p.side==='Buy'?'badge-long':'badge-short'}">${side}</span></td>
       <td>${entry.toFixed(4)}</td>
