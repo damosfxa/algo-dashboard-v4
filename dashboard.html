@@ -802,8 +802,9 @@ async function fetchAll() {
     const [status, pos, trades, perf] = await Promise.all([
       api('status'), api('positions'), api('trades'), api('performance')
     ]);
-    updateOverview(status, perf, trades, pos);
+    // Update positions dulu agar lastPositions terisi sebelum updateOverview
     updatePositions(pos, status);
+    updateOverview(status, perf, trades, pos);
     updateTrades(trades);
     updateTransactions(trades, status);
     updateAI(status);
@@ -833,13 +834,21 @@ function updateOverview(s, perf, tradesData, posData) {
   const trades = tradesData?.trades||[];
   const posCount = posData?.positions?.length||0;
 
-  document.getElementById('o-bal').textContent = `$${bal.toFixed(4)}`;
+  // Balance realtime = closed balance + unrealized dari posisi terbuka
+  const unrealTotal = lastPositions.reduce((s,p)=>s+(parseFloat(p.unrealized_pnl)||0), 0);
+  const realtimeBal = bal + unrealTotal;
+  document.getElementById('o-bal').textContent = `$${realtimeBal.toFixed(4)}`;
+  
+  // Today P&L = closed daily_pnl + unrealized saat ini
+  const realtimeDpnl = dpnl + unrealTotal;
   const dp = document.getElementById('o-dpnl');
-  dp.textContent = `${dpnl>=0?'$+':'$-'}${Math.abs(dpnl).toFixed(4)}`;
-  dp.className = `stat-value ${dpnl>=0?'c-green':'c-red'}`;
+  dp.textContent = `${realtimeDpnl>=0?'$+':'$-'}${Math.abs(realtimeDpnl).toFixed(4)}`;
+  dp.className = `stat-value ${realtimeDpnl>=0?'c-green':'c-red'}`;
+  
   const tp = document.getElementById('o-tpnl');
-  tp.textContent = `${tpnl>=0?'$+':'$-'}${Math.abs(tpnl).toFixed(4)}`;
-  tp.className = `stat-value ${tpnl>=0?'c-green':'c-red'}`;
+  const realtimeTpnl = tpnl + unrealTotal;
+  tp.textContent = `${realtimeTpnl>=0?'$+':'$-'}${Math.abs(realtimeTpnl).toFixed(4)}`;
+  tp.className = `stat-value ${realtimeTpnl>=0?'c-green':'c-red'}`;
   const wrEl = document.getElementById('o-wr');
   wrEl.textContent = `${wr.toFixed(1)}%`;
   wrEl.className = `stat-value ${wr>=50?'c-green':wr>=40?'c-yellow':'c-red'}`;
@@ -883,8 +892,8 @@ function updateOverview(s, perf, tradesData, posData) {
   const running = s.bot?.is_running;
   document.getElementById('bot-dot').className = `status-dot ${running?'':'off'}`;
   document.getElementById('bot-status-text').textContent = running?'Bot Running':'Bot Stopped';
-  // Update topbar balance realtime
-  document.getElementById('tb-bal') && (document.getElementById('tb-bal').textContent = `$${bal.toFixed(4)}`);
+  // Update topbar balance realtime (termasuk unrealized)
+  document.getElementById('tb-bal') && (document.getElementById('tb-bal').textContent = `$${realtimeBal.toFixed(4)}`);
 
   // Scan stats
   const scanStats = s.scan_stats||{};
@@ -913,15 +922,23 @@ function renderOverviewPositions(pos) {
     const trailSL = parseFloat(p.trailing_sl||0);
     const side = p.side==='Buy'?'LONG':'SHORT';
 
-    // Progress bar: jarak entry→TP, posisi current
+    // Progress bar: 0% = entry, 100% = TP
+    // Gunakan unrealized_pnl_pct (sudah leverage-adjusted dari API)
+    const rawPct = parseFloat(p.unrealized_pnl_pct||0); // leverage-adjusted %
+    // Normalize ke range SL→TP (SL = -100%, TP = +100%)
+    // rawPct bisa -X% sampai +Y%, kita map ke 0-100% progress menuju TP
     let pct = 0, barColor = '#3b82f6', statusLabel = 'Active';
     if(entry && tp && sl) {
-      const totalRange = Math.abs(tp - entry);
+      const slDist = Math.abs(entry - sl);       // jarak ke SL
+      const tpDist = Math.abs(tp - entry);       // jarak ke TP
+      const totalRange = slDist + tpDist;
       const curMove = side==='LONG' ? (cur - entry) : (entry - cur);
-      pct = totalRange > 0 ? Math.max(0, Math.min(100, (curMove/totalRange)*100)) : 0;
+      // pct = 0% di SL, 50% di entry, 100% di TP
+      const rawProgress = (curMove + slDist) / totalRange;
+      pct = Math.max(0, Math.min(100, rawProgress * 100));
       if(trailSL > 0) { barColor='#3b82f6'; statusLabel='Trailing'; }
       else if(beDone) { barColor='#eab308'; statusLabel='Break-Even'; }
-      else if(pct < 0) { barColor='#ef4444'; statusLabel='In Loss'; }
+      else if(curMove < 0) { barColor='#ef4444'; statusLabel='In Loss'; }
       else { barColor='#22c55e'; statusLabel='Profit'; }
     }
 
@@ -970,12 +987,15 @@ function updatePositions(data, status) {
 
     let pct=0, barColor='#3b82f6', statusLabel='Active';
     if(entry && tp && sl) {
-      const totalRange = Math.abs(tp-entry);
+      const slDist = Math.abs(entry-sl);
+      const tpDist = Math.abs(tp-entry);
+      const totalRange = slDist + tpDist;
       const curMove = side==='LONG'?(cur-entry):(entry-cur);
-      pct = totalRange>0?Math.max(0,Math.min(100,(curMove/totalRange)*100)):0;
+      const rawProgress = (curMove + slDist) / totalRange;
+      pct = Math.max(0, Math.min(100, rawProgress*100));
       if(trailSL>0){barColor='#3b82f6';statusLabel='Trailing';}
       else if(beDone){barColor='#eab308';statusLabel='Break-Even';}
-      else if(pct<0){barColor='#ef4444';statusLabel='In Loss';}
+      else if(curMove<0){barColor='#ef4444';statusLabel='In Loss';}
       else{barColor='#22c55e';statusLabel='Profit';}
     }
     return `<tr>
@@ -1030,7 +1050,8 @@ function updateTransactions(data, status) {
   const trades = data.trades||[];
   const bal = status.balance?.current||0;
   const initBal = status.balance?.initial||bal;
-  document.getElementById('tx-bal').textContent = `$${bal.toFixed(4)}`;
+  const txUnreal = lastPositions.reduce((s,p)=>s+(parseFloat(p.unrealized_pnl)||0), 0);
+  document.getElementById('tx-bal').textContent = `$${(bal+txUnreal).toFixed(4)}`;
   document.getElementById('tx-total').textContent = trades.length;
 
   // This Month P&L — total dari semua trades bulan ini
@@ -1170,7 +1191,8 @@ function updateControl(s, tradesData) {
   const isRun = s.bot?.is_running;
   document.getElementById('c-run').textContent = isRun ? '● ON' : '○ OFF';
   document.getElementById('c-run').className = `perf-v ${isRun?'c-green':'c-red'}`;
-  document.getElementById('c-bal').textContent = `$${(s.balance?.current||0).toFixed(4)}`;
+  const ctrlUnreal = lastPositions.reduce((s,p)=>s+(parseFloat(p.unrealized_pnl)||0), 0);
+  document.getElementById('c-bal').textContent = `$${((s.balance?.current||0)+ctrlUnreal).toFixed(4)}`;
   document.getElementById('c-pos').textContent = `${lastPositions.length}/1`;
   document.getElementById('c-trades').textContent = s.performance?.total_trades||0;
   document.getElementById('c-upd').textContent = new Date().toTimeString().slice(0,8);
