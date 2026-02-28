@@ -1300,35 +1300,44 @@ document.addEventListener('keydown', e => {
 
 // Modal functions
 function openPosModal(pos) {
-  const side = pos.side==='Buy'?'LONG':'SHORT';
-  const pnl = pos.unrealized_pnl||0;
-  const entry = parseFloat(pos.entry_price||0);
-  const cur = parseFloat(pos.current_price||entry);
-  const sl = parseFloat(pos.stop_loss||0);
-  const tp = parseFloat(pos.take_profit||0);
-  const trailSL = parseFloat(pos.trailing_sl||0);
-  const pnlPct = pos.unrealized_pnl_pct||0;
-  const status = trailSL>0?'Trailing Stop':(pos.be_done?'Break-Even':'Active');
+  var side = pos.side==='Buy'?'LONG':'SHORT';
+  var badgeClass = pos.side==='Buy'?'badge-long':'badge-short';
+  var pnl = pos.unrealized_pnl||0;
+  var entry = parseFloat(pos.entry_price||0);
+  var cur = parseFloat(pos.current_price||entry);
+  var sl = parseFloat(pos.stop_loss||0);
+  var tp = parseFloat(pos.take_profit||0);
+  var trailSL = parseFloat(pos.trailing_sl||0);
+  var pnlPct = pos.unrealized_pnl_pct||0;
+  var status = trailSL>0?'Trailing Stop':(pos.be_done?'Break-Even':'Active');
+  var pnlClass = pnl>=0?'c-green':'c-red';
+  var pnlSign = pnl>=0?'+':'';
+  var openedStr = pos.opened_at ? new Date(pos.opened_at).toLocaleString('id-ID') : '-';
+  var trailStr = trailSL>0 ? trailSL.toFixed(6) : '-';
 
   document.getElementById('modal-symbol').innerHTML =
-    \`\${pos.symbol} <span class="badge \${pos.side==='Buy'?'badge-long':'badge-short'}" style="margin-left:8px">\${side}</span>\`;
+    pos.symbol + ' <span class="badge ' + badgeClass + '" style="margin-left:8px">' + side + '</span>';
 
-  document.getElementById('modal-body').innerHTML = \`
-    <div class="modal-row"><span class="modal-k">Strategy</span><span class="modal-v" style="font-size:11px">\${pos.strategy||'—'}</span></div>
-    <div class="modal-row"><span class="modal-k">Entry Price</span><span class="modal-v">\${entry.toFixed(6)}</span></div>
-    <div class="modal-row"><span class="modal-k">Current Price</span><span class="modal-v">\${cur.toFixed(6)}</span></div>
-    <div class="modal-row"><span class="modal-k">Quantity</span><span class="modal-v">\${(pos.quantity||0).toFixed(2)}</span></div>
-    <div class="modal-row"><span class="modal-k">Leverage</span><span class="modal-v c-yellow">\${pos.leverage||1}x</span></div>
-    <div class="modal-row"><span class="modal-k">Margin Used</span><span class="modal-v">\$\${(pos.margin||0).toFixed(4)}</span></div>
-    <div class="modal-row"><span class="modal-k">Unrealized PnL</span><span class="modal-v \${pnl>=0?'c-green':'c-red'}">\${pnl>=0?'+':''}\$\${pnl.toFixed(4)} (\${pnlPct.toFixed(2)}%)</span></div>
-    <div class="modal-row"><span class="modal-k">Stop Loss</span><span class="modal-v c-red">\${sl.toFixed(6)}</span></div>
-    <div class="modal-row"><span class="modal-k">Take Profit</span><span class="modal-v c-green">\${tp.toFixed(6)}</span></div>
-    <div class="modal-row"><span class="modal-k">Trailing SL</span><span class="modal-v c-blue">\${trailSL>0?trailSL.toFixed(6):'—'}</span></div>
-    <div class="modal-row"><span class="modal-k">Signal Score</span><span class="modal-v">\${(pos.signal_score||0).toFixed(3)}</span></div>
-    <div class="modal-row"><span class="modal-k">Status</span><span class="modal-v">\${status}</span></div>
-    <div class="modal-row"><span class="modal-k">Opened</span><span class="modal-v c-gray" style="font-size:11px">\${pos.opened_at?new Date(pos.opened_at).toLocaleString('id-ID'):'—'}</span></div>
-    <div class="modal-row"><span class="modal-k">Age</span><span class="modal-v">\${getAge(pos.opened_at)}</span></div>
-  \`;
+  function row(k, v, cls) {
+    return '<div class="modal-row"><span class="modal-k">' + k + '</span><span class="modal-v ' + (cls||'') + '">' + v + '</span></div>';
+  }
+
+  document.getElementById('modal-body').innerHTML =
+    row('Strategy', pos.strategy||'-', '') +
+    row('Entry Price', entry.toFixed(6)) +
+    row('Current Price', cur.toFixed(6)) +
+    row('Quantity', (pos.quantity||0).toFixed(2)) +
+    row('Leverage', (pos.leverage||1) + 'x', 'c-yellow') +
+    row('Margin Used', '$' + (pos.margin||0).toFixed(4)) +
+    row('Unrealized PnL', pnlSign + '$' + pnl.toFixed(4) + ' (' + pnlPct.toFixed(2) + '%)', pnlClass) +
+    row('Stop Loss', sl.toFixed(6), 'c-red') +
+    row('Take Profit', tp.toFixed(6), 'c-green') +
+    row('Trailing SL', trailStr, 'c-blue') +
+    row('Signal Score', (pos.signal_score||0).toFixed(3)) +
+    row('Status', status) +
+    row('Opened', openedStr, 'c-gray') +
+    row('Age', getAge(pos.opened_at));
+
   document.getElementById('pos-modal').classList.add('open');
 }
 
