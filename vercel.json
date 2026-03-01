@@ -1,8 +1,8 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/api/auth", "dest": "/api/auth.js" },
-    { "src": "/api/proxy", "dest": "/api/proxy.js" },
+    { "src": "/api/auth", "dest": "/auth.js" },
+    { "src": "/api/proxy", "dest": "/proxy.js" },
     { "src": "/", "dest": "/login.html" },
     { "src": "/dashboard", "dest": "/dashboard.html" }
   ]
