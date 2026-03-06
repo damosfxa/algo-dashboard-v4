@@ -387,7 +387,7 @@ input,textarea { user-select:text; }
           <div class="pb">
             <div class="kv"><span class="kv-k">Last Run</span><span class="kv-v" id="wf-last">Never</span></div>
             <div class="kv"><span class="kv-k">Verdict</span><span id="wf-verdict" class="badge b-gray">NOT RUN</span></div>
-            <div class="kv"><span class="kv-k">Status</span><span class="kv-v y" id="wf-next">Needs 30+ trades</span></div>
+            <div class="kv"><span class="kv-k">Status</span><span class="kv-v y" id="wf-next">Needs 10+ trades</span></div>
           </div>
         </div>
         <div class="panel">
@@ -858,34 +858,77 @@ async function fetchAIPage(){
 // ── JOURNAL ──────────────────────────────────────
 async function fetchJournal(){
   try{
-    const d=await api('post-mortem');
-    const entries=d.recent_analyses||[];
+    const [pm, jd] = await Promise.all([
+      api('post-mortem').catch(()=>null),
+      api('trade-journal').catch(()=>null)
+    ]);
     const jb=document.getElementById('journal-body');
-    if(!entries.length){
+
+    // Build map dari trade-journal entries by symbol
+    const narrativeMap={};
+    if(jd&&jd.entries){
+      jd.entries.forEach(e=>{
+        // Header format: "2026-03-05 18:08 | HYPEUSDT Sell | WIN ✅"
+        const parts=e.header.split('|').map(s=>s.trim());
+        if(parts.length>=2){
+          const symSide=parts[1].trim(); // "HYPEUSDT Sell"
+          const sym=symSide.split(' ')[0];
+          narrativeMap[sym]=(narrativeMap[sym]||[]);
+          narrativeMap[sym].push({header:e.header, body:e.body});
+        }
+      });
+    }
+
+    const entries=(pm&&pm.recent_analyses)||[];
+    if(!entries.length&&!jd?.entries?.length){
       jb.innerHTML=`<div style="color:var(--muted);font-size:12px">No entries yet.</div>`;
       return;
     }
-    jb.innerHTML=entries.map(e=>{
+
+    // Use journal entries if post-mortem empty
+    const renderList = entries.length ? entries.map(e=>({
+      symbol: e.symbol,
+      pnl: e.pnl,
+      tag: e.pattern_tag||'unknown',
+      root_cause: e.root_cause||'',
+      analyzed_at: e.analyzed_at
+    })) : (jd?.entries||[]).map(e=>{
+      const p=e.header.split('|').map(s=>s.trim());
+      const isWin=e.header.includes('WIN');
+      return {symbol:p[1]?.split(' ')[0]||'?', pnl:isWin?1:-1, tag:p[2]||'', root_cause:'', analyzed_at:p[0], narrative:e.body};
+    });
+
+    jb.innerHTML=renderList.map(e=>{
       const outcome=(e.pnl||0)>=0?'WIN':'LOSS';
-      const tag=(e.pattern_tag||'unknown').replace(/_/g,' ');
-      // Parse root_cause for better display
-      const rc=e.root_cause||'—';
+      const tag=(e.tag||'unknown').replace(/_/g,' ');
+      const rc=e.root_cause||'';
       const parts=rc.split('|').map(s=>s.trim());
       const fieldMap={};
       parts.forEach(p=>{const eq=p.indexOf('=');if(eq>0)fieldMap[p.slice(0,eq).trim()]=p.slice(eq+1).trim();});
       const regime=fieldMap['regime']||'unknown';
       const regimeColor=regime==='unknown'?'var(--muted)':regime.includes('trend')?'var(--green)':'var(--blue)';
-      const details=`outcome: <b style="color:var(--text)">${parts[0]||'—'}</b> &nbsp;|&nbsp; `+
-        `regime: <b style="color:${regimeColor}">${regime}</b> &nbsp;|&nbsp; `+
-        `confluence: <b style="color:var(--text)">${fieldMap['confluence']||'0'}</b> &nbsp;|&nbsp; `+
-        `score: <b style="color:var(--text)">${fieldMap['score']||'—'}</b>`;
+
+      // Get narrative from journal
+      const narr=narrativeMap[e.symbol];
+      const narrativeHtml=narr&&narr.length?
+        `<div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:6px;border-left:2px solid var(--blue)">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:var(--mono);margin-bottom:8px">AI ANALYSIS</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.9;font-family:var(--sans)">${narr[0].body.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
+        </div>`:'';
+
       return`<div style="padding:16px 0;border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <span class="badge ${outcome==='WIN'?'b-green':'b-red'}">${outcome} — ${e.symbol||'?'}</span>
           <span class="badge b-gray">${tag}</span>
           <span style="color:var(--muted);font-size:10px;margin-left:auto;font-family:var(--mono)">${e.analyzed_at?new Date(e.analyzed_at).toLocaleString():'—'}</span>
         </div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.8;font-family:var(--mono)">${details}</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8;font-family:var(--mono)">
+          regime: <b style="color:${regimeColor}">${regime}</b> &nbsp;|&nbsp;
+          confluence: <b style="color:var(--text)">${fieldMap['confluence']||'0'}</b> &nbsp;|&nbsp;
+          score: <b style="color:var(--text)">${fieldMap['score']||'—'}</b> &nbsp;|&nbsp;
+          pnl: <b style="color:${(e.pnl||0)>=0?'var(--green)':'var(--red)'}">${(e.pnl||0)>=0?'+':''}$${Math.abs(e.pnl||0).toFixed(4)}</b>
+        </div>
+        ${narrativeHtml}
       </div>`;
     }).join('');
   }catch(e){
