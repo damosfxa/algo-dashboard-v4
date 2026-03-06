@@ -387,7 +387,7 @@ input,textarea { user-select:text; }
           <div class="pb">
             <div class="kv"><span class="kv-k">Last Run</span><span class="kv-v" id="wf-last">Never</span></div>
             <div class="kv"><span class="kv-k">Verdict</span><span id="wf-verdict" class="badge b-gray">NOT RUN</span></div>
-            <div class="kv"><span class="kv-k">Status</span><span class="kv-v y" id="wf-next">Needs 10+ trades</span></div>
+            <div class="kv"><span class="kv-k">Status</span><span class="kv-v y" id="wf-next">Needs 30+ trades</span></div>
           </div>
         </div>
         <div class="panel">
@@ -828,7 +828,7 @@ async function fetchAIPage(){
       el.textContent=v.toUpperCase().replace(/_/g,' ');
       el.className=`badge ${v==='stable'?'b-green':v==='degrading'?'b-red':'b-gray'}`;
       const totalTr=cachedStatus?.performance?.total_trades||0;
-      set('wf-next',totalTr>=10?'Ready to run':`Needs ${10-totalTr} more trades`);
+      set('wf-next',totalTr>=30?'Ready to run':`Needs ${30-totalTr} more trades`);
     }
     const ab=await api('ab-testing').catch(()=>null);
     if(ab){
