@@ -191,6 +191,7 @@ input,textarea { user-select:text; }
     <div class="nav-item" onclick="go('ai',this)"><span class="nav-icon">⬡</span>AI Engine</div>
     <div class="nav-section">More</div>
     <div class="nav-item" onclick="go('journal',this)"><span class="nav-icon">✦</span>Journal</div>
+    <div class="nav-item" onclick="go('history',this)"><span class="nav-icon">📅</span>History</div>
     <div class="nav-item" onclick="go('news',this)"><span class="nav-icon">📰</span>News</div>
     <div class="nav-item" onclick="go('transactions',this)"><span class="nav-icon">↕</span>Transactions</div>
     <div class="nav-item" onclick="go('control',this)"><span class="nav-icon">⚙</span>Control</div>
@@ -290,7 +291,15 @@ input,textarea { user-select:text; }
     <!-- TRADES -->
     <div id="page-trades" class="page">
       <div class="panel">
-        <div class="ph"><span class="ph-label">Trade History</span><span class="badge b-gray" id="t-count">0 trades</span></div>
+        <div class="ph">
+          <span class="ph-label">Trade History</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="badge b-gray" id="t-count">0 trades</span>
+            <select id="trades-month-filter" onchange="filterTradesByMonth(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;font-size:10px;font-family:var(--mono);cursor:pointer">
+              <option value="">Semua Bulan</option>
+            </select>
+          </div>
+        </div>
         <div id="t-body-wrap"></div>
       </div>
     </div>
@@ -411,37 +420,28 @@ input,textarea { user-select:text; }
     <!-- JOURNAL -->
     <div id="page-journal" class="page">
       <div class="panel">
-        <div class="ph"><span class="ph-label">Trade Journal — Post-Mortem</span></div>
+        <div class="ph">
+          <span class="ph-label">Trade Journal — Post-Mortem</span>
+          <select id="journal-month-filter" onchange="filterJournalByMonth(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;font-size:10px;font-family:var(--mono);cursor:pointer">
+            <option value="">Semua Bulan</option>
+          </select>
+        </div>
         <div class="pb" id="journal-body"><div style="color:var(--muted);font-size:12px">Loading...</div></div>
       </div>
     </div>
 
-    <!-- NEWS -->
-    <div id="page-news" class="page">
-      <div class="cards c3" style="margin-bottom:14px">
-        <div class="card" id="news-card-crypto" onclick="filterNews('crypto')" style="cursor:pointer">
-          <div class="card-label">Crypto</div>
-          <div class="card-val" id="news-count-crypto">—</div>
-        </div>
-        <div class="card" id="news-card-economy" onclick="filterNews('economy')" style="cursor:pointer">
-          <div class="card-label">Economy</div>
-          <div class="card-val" id="news-count-economy">—</div>
-        </div>
-        <div class="card" id="news-card-geo" onclick="filterNews('geo')" style="cursor:pointer">
-          <div class="card-label">Geopolitical</div>
-          <div class="card-val" id="news-count-geo">—</div>
-        </div>
+    <!-- HISTORY -->
+    <div id="page-history" class="page">
+      <div class="panel" style="margin-bottom:14px">
+        <div class="ph"><span class="ph-label">Monthly Performance</span></div>
+        <div class="pb" id="history-body"><div style="color:var(--muted);font-size:12px">Loading...</div></div>
       </div>
-      <div class="panel">
+      <div class="panel" id="history-detail-panel" style="display:none">
         <div class="ph">
-          <span class="ph-label">Live News Feed</span>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span id="news-filter-label" style="font-size:10px;color:var(--muted);font-family:var(--mono)">ALL</span>
-            <button onclick="filterNews('all')" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">RESET</button>
-            <button onclick="fetchNews()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">↺ REFRESH</button>
-          </div>
+          <span class="ph-label" id="history-detail-title">Detail Trades</span>
+          <button onclick="document.getElementById('history-detail-panel').style.display='none'" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">✕ Tutup</button>
         </div>
-        <div class="pb" id="news-body"><div style="color:var(--muted);font-size:12px">Loading news...</div></div>
+        <div id="history-detail-body"></div>
       </div>
     </div>
 
@@ -516,6 +516,26 @@ input,textarea { user-select:text; }
       </div>
     </div>
 
+    <!-- NEWS -->
+    <div id="page-news" class="page">
+      <div class="cards c3" style="margin-bottom:14px">
+        <div class="card" id="news-card-crypto" onclick="filterNews('crypto')" style="cursor:pointer"><div class="card-label">Crypto</div><div class="card-val" id="news-count-crypto">—</div></div>
+        <div class="card" id="news-card-economy" onclick="filterNews('economy')" style="cursor:pointer"><div class="card-label">Economy</div><div class="card-val" id="news-count-economy">—</div></div>
+        <div class="card" id="news-card-geo" onclick="filterNews('geo')" style="cursor:pointer"><div class="card-label">Geopolitical</div><div class="card-val" id="news-count-geo">—</div></div>
+      </div>
+      <div class="panel">
+        <div class="ph">
+          <span class="ph-label">Live News Feed</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="news-filter-label" style="font-size:10px;color:var(--muted);font-family:var(--mono)">ALL</span>
+            <button onclick="filterNews('all')" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">RESET</button>
+            <button onclick="fetchNews()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">↺ REFRESH</button>
+          </div>
+        </div>
+        <div class="pb" id="news-body"><div style="color:var(--muted);font-size:12px">Loading news...</div></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -534,7 +554,7 @@ let prevTrades=[],charts={},lastPos=[],cachedStatus=null;
 setInterval(()=>{document.getElementById('tb-clock').textContent=new Date().toTimeString().slice(0,8);},1000);
 
 // Nav
-const TITLES={overview:'Overview',positions:'Positions',trades:'Trades',analytics:'Analytics',intel:'Intelligence',ai:'AI Engine',journal:'Journal',news:'News',transactions:'Transactions',control:'Control'};
+const TITLES={overview:'Overview',positions:'Positions',trades:'Trades',analytics:'Analytics',intel:'Intelligence',ai:'AI Engine',journal:'Journal',history:'History',news:'News',transactions:'Transactions',control:'Control'};
 function go(page,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -545,6 +565,7 @@ function go(page,el){
   if(page==='intel')fetchIntel();
   if(page==='ai')fetchAIPage();
   if(page==='journal')fetchJournal();
+  if(page==='history')fetchHistory();
   if(page==='news')fetchNews();
 }
 
@@ -725,48 +746,23 @@ function updateTrades(data){
     else notify(`✗ LOSS — ${t.symbol}`,`$${t.pnl.toFixed(4)}`,'loss');
   }
   prevTrades=trades;
-  set('t-count',`${trades.length} trades`);
+  _allTradesData=trades;
 
-  const wrap=document.getElementById('t-body-wrap');
-  if(!trades.length){
-    wrap.innerHTML=`<div class="tbl-empty">No trades yet</div>`;
-    return;
+  // Populate month dropdown
+  const sel=document.getElementById('trades-month-filter');
+  if(sel&&sel.options.length<=1){
+    const months=[...new Set(trades.map(t=>{
+      const d=t.closed_at||t.opened_at||'';
+      return d.substring(0,7);
+    }).filter(Boolean))].sort().reverse();
+    months.forEach(m=>{
+      const opt=document.createElement('option');
+      opt.value=m; opt.textContent=formatMonthLabel(m);
+      sel.appendChild(opt);
+    });
   }
 
-  // Group by month
-  const groups={};
-  trades.forEach(t=>{
-    const d=t.closed_at?new Date(t.closed_at):new Date(t.opened_at);
-    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const label=d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-    if(!groups[key])groups[key]={label,trades:[],pnl:0};
-    groups[key].trades.push(t);
-    groups[key].pnl+=(t.pnl||0);
-  });
-
-  const sortedKeys=Object.keys(groups).sort().reverse();
-  let html='';
-  sortedKeys.forEach(key=>{
-    const g=groups[key];
-    const pnlCls=g.pnl>=0?'g':'r';
-    html+=`<div class="month-header">
-      <span>${g.label} — ${g.trades.length} trade${g.trades.length!==1?'s':''}</span>
-      <span class="month-pnl ${pnlCls}">${fmtPnl(g.pnl,4)}</span>
-    </div>
-    <table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Duration</th><th>Score</th><th>Exit Reason</th></tr></thead><tbody>`;
-    g.trades.forEach(t=>{
-      html+=`<tr><td class="mono" style="font-weight:600">${t.symbol}</td>
-        <td><span class="badge ${t.side==='Buy'?'b-long':'b-short'}">${t.side==='Buy'?'LONG':'SHORT'}</span></td>
-        <td class="mono">${(t.entry_price||0).toFixed(4)}</td>
-        <td class="mono">${(t.exit_price||0).toFixed(4)}</td>
-        <td class="mono ${clsNum(t.pnl||0)}" style="font-weight:600">${fmtPnl(t.pnl||0)}</td>
-        <td style="color:var(--muted)">${dur(t.opened_at,t.closed_at)}</td>
-        <td class="mono" style="color:var(--muted)">${(t.signal_score||0).toFixed(3)}</td>
-        <td style="color:var(--muted);font-size:12px">${exitLabel(t.notes||'—')}</td></tr>`;
-    });
-    html+=`</tbody></table>`;
-  });
-  wrap.innerHTML=html;
+  renderTradeGroups(trades);
 }
 
 // ── ANALYTICS ────────────────────────────────────
@@ -1094,91 +1090,301 @@ function closeModal(){document.getElementById('pos-modal').classList.remove('ope
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['c','a','s','u','p'].includes(e.key.toLowerCase()))e.preventDefault();});
 
-// ── NEWS ─────────────────────────────────────────
-let _allNews = [];
-let _activeFilter = 'all';
+// ── MONTH FILTER - TRADES ────────────────────────
+let _allTradesData = [];
+async function filterTradesByMonth(month){
+  const wrap = document.getElementById('t-body-wrap');
+  if(!wrap) return;
+  if(!month){
+    renderTradeGroups(_allTradesData);
+    return;
+  }
+  const filtered = _allTradesData.filter(t=>{
+    const d = t.closed_at||t.opened_at||'';
+    return d.startsWith(month);
+  });
+  renderTradeGroups(filtered);
+}
 
-const CAT_COLORS = {
-  crypto:  {bg:'rgba(0,217,126,0.08)', border:'rgba(0,217,126,0.3)', text:'#00d97e', label:'CRYPTO'},
-  economy: {bg:'rgba(59,130,246,0.08)', border:'rgba(59,130,246,0.3)', text:'#3b82f6', label:'ECONOMY'},
-  geo:     {bg:'rgba(251,191,36,0.08)', border:'rgba(251,191,36,0.3)', text:'#fbbf24', label:'GEO'},
+function renderTradeGroups(trades){
+  const wrap = document.getElementById('t-body-wrap');
+  set('t-count',`${trades.length} trades`);
+  if(!trades.length){ wrap.innerHTML=`<div class="tbl-empty">Tidak ada trade</div>`; return; }
+  const groups={};
+  trades.forEach(t=>{
+    const d=t.closed_at?new Date(t.closed_at):new Date(t.opened_at);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label=d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+    if(!groups[key])groups[key]={label,trades:[],pnl:0};
+    groups[key].trades.push(t);
+    groups[key].pnl+=(t.pnl||0);
+  });
+  const sortedKeys=Object.keys(groups).sort().reverse();
+  let html='';
+  sortedKeys.forEach(key=>{
+    const g=groups[key];
+    html+=`<div class="month-header"><span>${g.label} — ${g.trades.length} trade</span><span class="month-pnl ${g.pnl>=0?'g':'r'}">${fmtPnl(g.pnl,4)}</span></div>
+    <table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Durasi</th><th>Score</th><th>Exit</th></tr></thead><tbody>`;
+    g.trades.forEach(t=>{
+      html+=`<tr><td class="mono" style="font-weight:600">${t.symbol}</td>
+        <td><span class="badge ${t.side==='Buy'?'b-long':'b-short'}">${t.side==='Buy'?'LONG':'SHORT'}</span></td>
+        <td class="mono">${(t.entry_price||0).toFixed(4)}</td>
+        <td class="mono">${(t.exit_price||0).toFixed(4)}</td>
+        <td class="mono ${clsNum(t.pnl||0)}" style="font-weight:600">${fmtPnl(t.pnl||0)}</td>
+        <td style="color:var(--muted)">${dur(t.opened_at,t.closed_at)}</td>
+        <td class="mono" style="color:var(--muted)">${(t.signal_score||0).toFixed(3)}</td>
+        <td style="color:var(--muted);font-size:12px">${exitLabel(t.notes||'—')}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+  });
+  wrap.innerHTML=html;
+}
+
+// ── MONTH FILTER - JOURNAL ────────────────────────
+let _allJournalEntries = [];
+async function fetchJournalFull(){
+  try{
+    const [pm, jd] = await Promise.all([
+      api('post-mortem').catch(()=>null),
+      api('trade-journal').catch(()=>null)
+    ]);
+    const narrativeMap={};
+    if(jd&&jd.entries){
+      jd.entries.forEach(e=>{
+        const parts=e.header.split('|').map(s=>s.trim());
+        if(parts.length>=2){
+          const sym=parts[1].trim().split(' ')[0];
+          narrativeMap[sym]=(narrativeMap[sym]||[]);
+          narrativeMap[sym].push({header:e.header, body:e.body});
+        }
+      });
+    }
+    _allJournalEntries = (pm&&pm.recent_analyses)||[];
+
+    // Populate month dropdown
+    const months = [...new Set(_allJournalEntries.map(e=>{
+      const d = e.analyzed_at||'';
+      return d.substring(0,7);
+    }).filter(Boolean))].sort().reverse();
+
+    const sel = document.getElementById('journal-month-filter');
+    if(sel){
+      sel.innerHTML = '<option value="">Semua Bulan</option>' +
+        months.map(m=>`<option value="${m}">${formatMonthLabel(m)}</option>`).join('');
+    }
+
+    renderJournalEntries(_allJournalEntries, narrativeMap);
+    window._journalNarrativeMap = narrativeMap;
+  }catch(e){
+    document.getElementById('journal-body').innerHTML=`<div style="color:var(--muted)">Gagal memuat journal.</div>`;
+  }
+}
+
+function filterJournalByMonth(month){
+  const filtered = month
+    ? _allJournalEntries.filter(e=>(e.analyzed_at||'').startsWith(month))
+    : _allJournalEntries;
+  renderJournalEntries(filtered, window._journalNarrativeMap||{});
+}
+
+function formatMonthLabel(ym){
+  if(!ym) return '';
+  const [y,m] = ym.split('-');
+  const names = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  return `${names[parseInt(m)]} ${y}`;
+}
+
+function renderJournalEntries(entries, narrativeMap){
+  const jb = document.getElementById('journal-body');
+  if(!jb) return;
+  if(!entries.length){ jb.innerHTML=`<div style="color:var(--muted);font-size:12px">Tidak ada entry.</div>`; return; }
+  jb.innerHTML=entries.map(e=>{
+    const outcome=(e.pnl||0)>=0?'WIN':'LOSS';
+    const tag=(e.pattern_tag||'unknown').replace(/_/g,' ');
+    const rc=e.root_cause||'';
+    const parts=rc.split('|').map(s=>s.trim());
+    const fieldMap={};
+    parts.forEach(p=>{const eq=p.indexOf('=');if(eq>0)fieldMap[p.slice(0,eq).trim()]=p.slice(eq+1).trim();});
+    const regime=fieldMap['regime']||'unknown';
+    const regimeColor=regime==='unknown'?'var(--muted)':regime.includes('trend')?'var(--green)':'var(--blue)';
+    const narr=narrativeMap[e.symbol];
+    const narrativeHtml=narr&&narr.length?
+      `<div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:6px;border-left:2px solid var(--blue)">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:var(--mono);margin-bottom:8px">AI ANALYSIS</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.9;font-family:var(--sans)">${narr[0].body.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
+      </div>`:'';
+    return`<div style="padding:16px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span class="badge ${outcome==='WIN'?'b-green':'b-red'}">${outcome} — ${e.symbol||'?'}</span>
+        <span class="badge b-gray">${tag}</span>
+        <span style="color:var(--muted);font-size:10px;margin-left:auto;font-family:var(--mono)">${e.analyzed_at?new Date(e.analyzed_at).toLocaleString('id-ID'):'—'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8;font-family:var(--mono)">
+        regime: <b style="color:${regimeColor}">${regime}</b> &nbsp;|&nbsp;
+        confluence: <b style="color:var(--text)">${fieldMap['confluence']||'0'}</b> &nbsp;|&nbsp;
+        score: <b style="color:var(--text)">${fieldMap['score']||'—'}</b> &nbsp;|&nbsp;
+        pnl: <b style="color:${(e.pnl||0)>=0?'var(--green)':'var(--red)'}">${(e.pnl||0)>=0?'+':''}$${Math.abs(e.pnl||0).toFixed(4)}</b>
+      </div>
+      ${narrativeHtml}
+    </div>`;
+  }).join('');
+}
+
+async function fetchJournal(){ await fetchJournalFull(); }
+
+// ── HISTORY ───────────────────────────────────────
+async function fetchHistory(){
+  const hb = document.getElementById('history-body');
+  if(!hb) return;
+  hb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">Memuat...</div>`;
+  try{
+    const d = await api('monthly-summary');
+    const months = d.months||[];
+    if(!months.length){ hb.innerHTML=`<div style="color:var(--muted);font-size:12px">Belum ada data.</div>`; return; }
+
+    // Populate trades month filter dropdown
+    const sel = document.getElementById('trades-month-filter');
+    if(sel){
+      const existing = new Set([...sel.options].map(o=>o.value).filter(Boolean));
+      months.forEach(m=>{
+        if(!existing.has(m.month)){
+          const opt = document.createElement('option');
+          opt.value = m.month;
+          opt.textContent = formatMonthLabel(m.month);
+          sel.appendChild(opt);
+        }
+      });
+    }
+
+    hb.innerHTML = months.map(m=>{
+      const wr = m.win_rate;
+      const wrColor = wr>=60?'var(--green)':wr>=50?'var(--yellow)':'var(--red)';
+      const pnlColor = m.total_pnl>=0?'var(--green)':'var(--red)';
+      return`<div style="padding:16px;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;cursor:pointer" onclick="loadHistoryDetail('${m.month}')">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${formatMonthLabel(m.month)}</div>
+          <div style="font-size:18px;font-weight:700;color:${pnlColor}">${m.total_pnl>=0?'+':''}$${m.total_pnl.toFixed(4)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">TOTAL TRADES</div>
+            <div style="font-size:20px;font-weight:700;color:var(--text)">${m.total_trades}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">WIN RATE</div>
+            <div style="font-size:20px;font-weight:700;color:${wrColor}">${wr}%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">BEST TRADE</div>
+            <div style="font-size:16px;font-weight:700;color:var(--green)">+$${m.best_trade.toFixed(4)}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">WORST TRADE</div>
+            <div style="font-size:16px;font-weight:700;color:var(--red)">${m.worst_trade.toFixed(4)}</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:var(--muted);font-family:var(--mono);text-align:right">Klik untuk lihat detail →</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    hb.innerHTML=`<div style="color:var(--muted)">Gagal memuat history.</div>`;
+  }
+}
+
+async function loadHistoryDetail(month){
+  const panel = document.getElementById('history-detail-panel');
+  const body = document.getElementById('history-detail-body');
+  const title = document.getElementById('history-detail-title');
+  if(!panel||!body) return;
+  panel.style.display='block';
+  title.textContent=`Detail — ${formatMonthLabel(month)}`;
+  body.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">Memuat...</div>`;
+  panel.scrollIntoView({behavior:'smooth'});
+  try{
+    const d = await api(`trades-by-month&month=${month}`);
+    const trades = d.trades||[];
+    if(!trades.length){ body.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:12px">Tidak ada trade bulan ini.</div>`; return; }
+    body.innerHTML=`<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Durasi</th><th>Score</th><th>Exit</th></tr></thead><tbody>`+
+      trades.map(t=>`<tr>
+        <td class="mono" style="font-weight:600">${t.symbol}</td>
+        <td><span class="badge ${t.side==='Buy'?'b-long':'b-short'}">${t.side==='Buy'?'LONG':'SHORT'}</span></td>
+        <td class="mono">${(t.entry_price||0).toFixed(4)}</td>
+        <td class="mono">${(t.exit_price||0).toFixed(4)}</td>
+        <td class="mono ${clsNum(t.pnl||0)}" style="font-weight:600">${fmtPnl(t.pnl||0)}</td>
+        <td style="color:var(--muted)">${dur(t.opened_at,t.closed_at)}</td>
+        <td class="mono" style="color:var(--muted)">${(t.signal_score||0).toFixed(3)}</td>
+        <td style="color:var(--muted);font-size:12px">${exitLabel(t.notes||'—')}</td>
+      </tr>`).join('')+`</tbody></table>`;
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--muted)">Gagal memuat detail.</div>`;
+  }
+}
+
+// ── NEWS ──────────────────────────────────────────
+let _allNews=[], _activeFilter='all';
+const CAT_COLORS={
+  crypto:{bg:'rgba(0,217,126,0.08)',border:'rgba(0,217,126,0.3)',text:'#00d97e',label:'CRYPTO'},
+  economy:{bg:'rgba(59,130,246,0.08)',border:'rgba(59,130,246,0.3)',text:'#3b82f6',label:'ECONOMY'},
+  geo:{bg:'rgba(251,191,36,0.08)',border:'rgba(251,191,36,0.3)',text:'#fbbf24',label:'GEO'},
 };
-
+const IMPACT={
+  high:{color:'#ff4560',bg:'rgba(255,69,96,0.1)',border:'rgba(255,69,96,0.3)',icon:'🔴',label:'HIGH IMPACT'},
+  medium:{color:'#fbbf24',bg:'rgba(251,191,36,0.1)',border:'rgba(251,191,36,0.3)',icon:'🟡',label:'MEDIUM'},
+  low:{color:'#4a5578',bg:'rgba(74,85,120,0.1)',border:'rgba(74,85,120,0.3)',icon:'⚪',label:'LOW'},
+};
 function timeAgo(pub){
   try{
-    const d=new Date(pub);
-    const diff=Math.floor((Date.now()-d)/1000);
+    const diff=Math.floor((Date.now()-new Date(pub))/1000);
     if(diff<60)return `${diff} detik lalu`;
     if(diff<3600)return `${Math.floor(diff/60)} menit lalu`;
     return `${Math.floor(diff/3600)} jam lalu`;
   }catch{return '—';}
 }
-
 async function fetchNews(){
   const nb=document.getElementById('news-body');
   if(!nb)return;
-  nb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">Fetching news...</div>`;
+  nb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">Mengambil berita...</div>`;
   try{
     const d=await api('news');
     _allNews=d.news||[];
-    // Update counts
     ['crypto','economy','geo'].forEach(cat=>{
-      const cnt=_allNews.filter(n=>n.category===cat).length;
       const el=document.getElementById(`news-count-${cat}`);
-      if(el)el.textContent=cnt;
+      if(el)el.textContent=_allNews.filter(n=>n.category===cat).length;
     });
     renderNews();
-  }catch(e){
-    nb.innerHTML=`<div style="color:var(--muted)">Failed to load news.</div>`;
-  }
+  }catch(e){ nb.innerHTML=`<div style="color:var(--muted)">Gagal memuat berita.</div>`; }
 }
-
 function filterNews(cat){
   _activeFilter=cat;
   const lbl=document.getElementById('news-filter-label');
   if(lbl)lbl.textContent=cat==='all'?'ALL':cat.toUpperCase();
-  // Highlight active card
   ['crypto','economy','geo'].forEach(c=>{
     const card=document.getElementById(`news-card-${c}`);
     if(card)card.style.borderColor=c===cat?CAT_COLORS[c]?.text:'var(--border)';
   });
   renderNews();
 }
-
 function renderNews(){
   const nb=document.getElementById('news-body');
   if(!nb)return;
   const filtered=_activeFilter==='all'?_allNews:_allNews.filter(n=>n.category===_activeFilter);
-  if(!filtered.length){
-    nb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">No news available.</div>`;
-    return;
-  }
-
-  const IMPACT={
-    high:   {color:'#ff4560', bg:'rgba(255,69,96,0.1)',  border:'rgba(255,69,96,0.3)',  icon:'🔴', label:'HIGH IMPACT'},
-    medium: {color:'#fbbf24', bg:'rgba(251,191,36,0.1)', border:'rgba(251,191,36,0.3)', icon:'🟡', label:'MEDIUM'},
-    low:    {color:'#4a5578', bg:'rgba(74,85,120,0.1)',  border:'rgba(74,85,120,0.3)',  icon:'⚪', label:'LOW'},
-  };
-
+  if(!filtered.length){nb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">Tidak ada berita.</div>`;return;}
   nb.innerHTML=filtered.map(n=>{
     const c=CAT_COLORS[n.category]||CAT_COLORS.crypto;
     const imp=IMPACT[n.impact]||IMPACT.low;
     const desc=n.description?`<div style="font-size:11px;color:var(--muted);margin-top:5px;line-height:1.6">${n.description}</div>`:'';
     const effect=n.crypto_effect?`<div style="font-size:11px;color:${imp.color};margin-top:5px;font-family:var(--mono)">↳ ${n.crypto_effect}</div>`:'';
     const reason=n.reason?`<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">${n.reason}</div>`:'';
-    const link=n.url?`<a href="${n.url}" target="_blank" style="font-size:10px;color:var(--blue);text-decoration:none;margin-top:6px;display:inline-block">Read more →</a>`:'';
+    const link=n.url?`<a href="${n.url}" target="_blank" style="font-size:10px;color:var(--blue);text-decoration:none;margin-top:6px;display:inline-block">Baca selengkapnya →</a>`:'';
     return`<div style="padding:14px 0;border-bottom:1px solid var(--border);border-left:3px solid ${imp.color};padding-left:12px;margin-left:-12px">
-      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:4px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
             <span style="font-size:9px;font-family:var(--mono);font-weight:700;color:${c.text};background:${c.bg};border:1px solid ${c.border};padding:2px 7px;border-radius:3px">${c.label}</span>
             <span style="font-size:9px;font-family:var(--mono);font-weight:700;color:${imp.color};background:${imp.bg};border:1px solid ${imp.border};padding:2px 7px;border-radius:3px">${imp.icon} ${imp.label}</span>
           </div>
           <div style="font-size:13px;color:var(--text);line-height:1.5;font-weight:500">${n.title}</div>
-          ${desc}
-          ${effect}
-          ${reason}
-          ${link}
+          ${desc}${effect}${reason}${link}
         </div>
         <div style="text-align:right;white-space:nowrap;min-width:75px">
           <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${timeAgo(n.published)}</div>
