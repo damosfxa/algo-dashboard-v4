@@ -191,6 +191,7 @@ input,textarea { user-select:text; }
     <div class="nav-item" onclick="go('ai',this)"><span class="nav-icon">⬡</span>AI Engine</div>
     <div class="nav-section">More</div>
     <div class="nav-item" onclick="go('journal',this)"><span class="nav-icon">✦</span>Journal</div>
+    <div class="nav-item" onclick="go('news',this)"><span class="nav-icon">📰</span>News</div>
     <div class="nav-item" onclick="go('transactions',this)"><span class="nav-icon">↕</span>Transactions</div>
     <div class="nav-item" onclick="go('control',this)"><span class="nav-icon">⚙</span>Control</div>
   </nav>
@@ -415,6 +416,35 @@ input,textarea { user-select:text; }
       </div>
     </div>
 
+    <!-- NEWS -->
+    <div id="page-news" class="page">
+      <div class="cards c3" style="margin-bottom:14px">
+        <div class="card" id="news-card-crypto" onclick="filterNews('crypto')" style="cursor:pointer">
+          <div class="card-label">Crypto</div>
+          <div class="card-val" id="news-count-crypto">—</div>
+        </div>
+        <div class="card" id="news-card-economy" onclick="filterNews('economy')" style="cursor:pointer">
+          <div class="card-label">Economy</div>
+          <div class="card-val" id="news-count-economy">—</div>
+        </div>
+        <div class="card" id="news-card-geo" onclick="filterNews('geo')" style="cursor:pointer">
+          <div class="card-label">Geopolitical</div>
+          <div class="card-val" id="news-count-geo">—</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph">
+          <span class="ph-label">Live News Feed</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="news-filter-label" style="font-size:10px;color:var(--muted);font-family:var(--mono)">ALL</span>
+            <button onclick="filterNews('all')" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">RESET</button>
+            <button onclick="fetchNews()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:var(--mono)">↺ REFRESH</button>
+          </div>
+        </div>
+        <div class="pb" id="news-body"><div style="color:var(--muted);font-size:12px">Loading news...</div></div>
+      </div>
+    </div>
+
     <!-- TRANSACTIONS -->
     <div id="page-transactions" class="page">
       <div class="cards c3" style="margin-bottom:14px">
@@ -504,7 +534,7 @@ let prevTrades=[],charts={},lastPos=[],cachedStatus=null;
 setInterval(()=>{document.getElementById('tb-clock').textContent=new Date().toTimeString().slice(0,8);},1000);
 
 // Nav
-const TITLES={overview:'Overview',positions:'Positions',trades:'Trades',analytics:'Analytics',intel:'Intelligence',ai:'AI Engine',journal:'Journal',transactions:'Transactions',control:'Control'};
+const TITLES={overview:'Overview',positions:'Positions',trades:'Trades',analytics:'Analytics',intel:'Intelligence',ai:'AI Engine',journal:'Journal',news:'News',transactions:'Transactions',control:'Control'};
 function go(page,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -515,6 +545,7 @@ function go(page,el){
   if(page==='intel')fetchIntel();
   if(page==='ai')fetchAIPage();
   if(page==='journal')fetchJournal();
+  if(page==='news')fetchNews();
 }
 
 async function api(path,method='GET',body=null){
@@ -1062,6 +1093,87 @@ function closeModal(){document.getElementById('pos-modal').classList.remove('ope
 
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['c','a','s','u','p'].includes(e.key.toLowerCase()))e.preventDefault();});
+
+// ── NEWS ─────────────────────────────────────────
+let _allNews = [];
+let _activeFilter = 'all';
+
+const CAT_COLORS = {
+  crypto:  {bg:'rgba(0,217,126,0.08)', border:'rgba(0,217,126,0.3)', text:'#00d97e', label:'CRYPTO'},
+  economy: {bg:'rgba(59,130,246,0.08)', border:'rgba(59,130,246,0.3)', text:'#3b82f6', label:'ECONOMY'},
+  geo:     {bg:'rgba(251,191,36,0.08)', border:'rgba(251,191,36,0.3)', text:'#fbbf24', label:'GEO'},
+};
+
+function timeAgo(pub){
+  try{
+    const d=new Date(pub);
+    const diff=Math.floor((Date.now()-d)/1000);
+    if(diff<60)return `${diff}s ago`;
+    if(diff<3600)return `${Math.floor(diff/60)}m ago`;
+    if(diff<86400)return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  }catch{return '—';}
+}
+
+async function fetchNews(){
+  const nb=document.getElementById('news-body');
+  if(!nb)return;
+  nb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">Fetching news...</div>`;
+  try{
+    const d=await api('news');
+    _allNews=d.news||[];
+    // Update counts
+    ['crypto','economy','geo'].forEach(cat=>{
+      const cnt=_allNews.filter(n=>n.category===cat).length;
+      const el=document.getElementById(`news-count-${cat}`);
+      if(el)el.textContent=cnt;
+    });
+    renderNews();
+  }catch(e){
+    nb.innerHTML=`<div style="color:var(--muted)">Failed to load news.</div>`;
+  }
+}
+
+function filterNews(cat){
+  _activeFilter=cat;
+  const lbl=document.getElementById('news-filter-label');
+  if(lbl)lbl.textContent=cat==='all'?'ALL':cat.toUpperCase();
+  // Highlight active card
+  ['crypto','economy','geo'].forEach(c=>{
+    const card=document.getElementById(`news-card-${c}`);
+    if(card)card.style.borderColor=c===cat?CAT_COLORS[c]?.text:'var(--border)';
+  });
+  renderNews();
+}
+
+function renderNews(){
+  const nb=document.getElementById('news-body');
+  if(!nb)return;
+  const filtered=_activeFilter==='all'?_allNews:_allNews.filter(n=>n.category===_activeFilter);
+  if(!filtered.length){
+    nb.innerHTML=`<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">No news available.</div>`;
+    return;
+  }
+  nb.innerHTML=filtered.map(n=>{
+    const c=CAT_COLORS[n.category]||CAT_COLORS.crypto;
+    const desc=n.description?`<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">${n.description}</div>`:'';
+    const link=n.url?`<a href="${n.url}" target="_blank" style="font-size:10px;color:var(--blue);text-decoration:none;margin-top:6px;display:inline-block">Read more →</a>`:'';
+    return`<div style="padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:4px">
+        <span style="font-size:9px;font-family:var(--mono);font-weight:700;color:${c.text};background:${c.bg};border:1px solid ${c.border};padding:2px 7px;border-radius:3px;white-space:nowrap;margin-top:2px">${c.label}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--text);line-height:1.5;font-weight:500">${n.title}</div>
+          ${desc}
+          ${link}
+        </div>
+        <div style="text-align:right;white-space:nowrap;min-width:80px">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">${timeAgo(n.published)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${n.source}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // Start: full refresh every 15s, positions every 5s
 fetchAll();
