@@ -4,99 +4,131 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Login</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   font-family: 'Inter', sans-serif;
-  background: #0a0a0a;
+  background: #07090f;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
 }
 .box {
-  background: #111;
-  border: 1px solid #1a1a1a;
-  border-radius: 10px;
-  padding: 32px 28px;
-  width: 320px;
+  background: #0d1018;
+  border: 1px solid #1e2538;
+  border-radius: 12px;
+  padding: 36px 32px;
+  width: 340px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
 }
-.title {
-  font-size: 11px;
-  font-weight: 500;
+.logo {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #00d97e;
   letter-spacing: 2px;
-  color: #444;
-  text-transform: uppercase;
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 4px;
+}
+.subtitle {
+  font-size: 10px;
+  color: #2a3350;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 1.5px;
+  margin-bottom: 28px;
+}
+label {
+  display: block;
+  font-size: 10px;
+  color: #4a5578;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  font-family: 'IBM Plex Mono', monospace;
 }
 input {
   width: 100%;
-  background: #f0f4ff;
-  border: 1px solid #ddd;
+  background: #131720;
+  border: 1px solid #1e2538;
   border-radius: 6px;
-  padding: 10px 12px;
-  font-family: 'Inter', sans-serif;
+  padding: 11px 14px;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 13px;
-  color: #111;
+  color: #ccd6f0;
   outline: none;
-  margin-bottom: 10px;
+  margin-bottom: 18px;
   transition: border 0.15s;
 }
-input:focus { border-color: #3b82f6; }
+input:focus { border-color: #00d97e; }
+input::placeholder { color: #2a3350; }
 button {
   width: 100%;
-  padding: 10px;
-  background: #3b82f6;
-  border: none;
+  padding: 11px;
+  background: rgba(0,217,126,0.08);
+  border: 1px solid rgba(0,217,126,0.3);
   border-radius: 6px;
   font-family: 'Inter', sans-serif;
   font-size: 13px;
-  font-weight: 500;
-  color: white;
+  font-weight: 600;
+  color: #00d97e;
   cursor: pointer;
-  transition: background 0.15s;
-  margin-top: 4px;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
 }
-button:hover { background: #2563eb; }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-.error { color: #ef4444; font-size: 12px; text-align: center; margin-top: 10px; display: none; }
+button:hover { background: #00d97e; color: #000; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.error {
+  color: #ff4560;
+  font-size: 11px;
+  text-align: center;
+  margin-top: 12px;
+  display: none;
+  font-family: 'IBM Plex Mono', monospace;
+}
 </style>
 </head>
 <body>
 <div class="box">
-  <div class="title">Dashboard Login</div>
-  <input type="text" placeholder="admin" value="admin" readonly style="color:#666">
-  <input type="password" id="pwd" placeholder="Password" onkeydown="if(event.key==='Enter')login()">
-  <button onclick="login()" id="btn">Sign In</button>
+  <div class="logo">◈ ALGO BOT</div>
+  <div class="subtitle">SECURE ACCESS</div>
+  <label>Password</label>
+  <input type="password" id="pwd" placeholder="Enter password" autofocus
+         onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()" id="btn">Sign In →</button>
   <div class="error" id="err">Invalid password</div>
 </div>
 <script>
 async function login() {
   const pwd = document.getElementById('pwd').value;
-  if(!pwd) return;
+  if (!pwd) return;
   const btn = document.getElementById('btn');
-  btn.textContent = 'Signing in...'; btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+  document.getElementById('err').style.display = 'none';
   try {
     const r = await fetch('/api/auth', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({password: pwd})
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
     });
-    if(r.ok) {
+    if (r.ok) {
       const d = await r.json();
       sessionStorage.setItem('auth_token', d.token);
       window.location.href = '/dashboard';
     } else {
       document.getElementById('err').style.display = 'block';
-      btn.textContent = 'Sign In';
+      btn.textContent = 'Sign In →';
       btn.disabled = false;
+      document.getElementById('pwd').value = '';
+      document.getElementById('pwd').focus();
     }
-  } catch(e) {
+  } catch (e) {
     document.getElementById('err').textContent = 'Connection error';
     document.getElementById('err').style.display = 'block';
-    btn.textContent = 'Sign In';
+    btn.textContent = 'Sign In →';
     btn.disabled = false;
   }
 }
