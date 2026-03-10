@@ -635,13 +635,13 @@ function updateOverview(s,trData){
   const dd=parseFloat(perf.current_drawdown||0),wr=parseFloat(perf.win_rate||0),totalTr=perf.total_trades||0;
   const unreal=lastPos.reduce((a,p)=>a+(parseFloat(p.unrealized_pnl)||0),0);
 
-  set('o-bal',`$${(curBal+unreal).toFixed(4)}`);
+  set('o-bal',`$${curBal.toFixed(4)}`);
   set('o-bal-sub',`initial $${initBal.toFixed(4)}`);
-  set('tb-bal',`$${(curBal+unreal).toFixed(4)}`);
+  set('tb-bal',`$${curBal.toFixed(4)}`);
 
   const dpEl=document.getElementById('o-dpnl');
-  dpEl.textContent=fmtPnl(dpnl+unreal);
-  dpEl.className=`card-val ${clsNum(dpnl+unreal)}`;
+  dpEl.textContent=fmtPnl(dpnl);
+  dpEl.className=`card-val ${clsNum(dpnl)}`;
 
   const tpEl=document.getElementById('o-tpnl');
   tpEl.textContent=fmtPnl(tpnl+unreal);
