@@ -455,7 +455,7 @@ input,textarea { user-select:text; }
       <div class="panel">
         <div class="ph"><span class="ph-label">Transaction History</span></div>
         <table class="tbl">
-          <thead><tr><th>Date</th><th>Type</th><th>Symbol</th><th>P&L</th><th>Balance After</th><th>Exit Reason</th></tr></thead>
+          <thead><tr><th>Open / Close</th><th>Result</th><th>Symbol</th><th>Entry / Exit</th><th>P&L</th><th>RR</th><th>Exit</th><th>Balance</th></tr></thead>
           <tbody id="tx-body"><tr><td colspan="6" class="tbl-empty">No transactions</td></tr></tbody>
         </table>
       </div>
@@ -992,17 +992,70 @@ function updateTransactions(data,status){
   const balAfter={};
   sorted.forEach(t=>{run+=(t.pnl||0);balAfter[t.id||t.opened_at]=run;});
 
+  const sessionColor={Asia:'#4fc3f7',London:'#a5d6a7','New York':'#ffb74d','Late NY':'#ce93d8'};
+  const exitColor={trailing_stop:'var(--green)',tp_hit:'var(--green)',breakeven:'var(--yellow)',sl_hit:'var(--red)',timeout:'var(--muted)',stale_trade:'var(--muted)'};
+
   body.innerHTML=trades.map(t=>{
     const pnl=t.pnl||0;
-    const date=t.closed_at?new Date(t.closed_at).toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'open';
     const bKey=t.id||t.opened_at;
-    return`<tr>
-      <td style="color:var(--muted);font-family:var(--mono);font-size:12px">${date}</td>
-      <td class="${clsNum(pnl)}" style="font-weight:600">${pnl>=0?'WIN':'LOSS'}</td>
-      <td class="mono" style="font-weight:600">${t.symbol}</td>
-      <td class="mono ${clsNum(pnl)}" style="font-weight:600">${fmtPnl(pnl)}</td>
-      <td class="mono" style="color:var(--muted)">$${balAfter[bKey]?balAfter[bKey].toFixed(4):'—'}</td>
-      <td style="color:var(--muted);font-size:12px">${exitLabel(t.notes||'—')}</td>
+    const openDt=t.opened_at?new Date(t.opened_at):null;
+    const closeDt=t.closed_at?new Date(t.closed_at):null;
+    const openStr=openDt?openDt.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'—';
+    const closeStr=closeDt?closeDt.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'open';
+    const sess=t.session||'—';
+    const sessCol=sessionColor[sess]||'var(--muted)';
+    const exit=t.exit_reason||t.notes||'—';
+    const exitCol=exitColor[exit]||'var(--muted)';
+    const rr=t.actual_rr;
+    const rrStr=rr!=null?(rr>=0?`+${rr.toFixed(2)}R`:`${rr.toFixed(2)}R`):'—';
+    const rrCol=rr==null?'var(--muted)':rr>=1?'var(--green)':rr>=0?'var(--yellow)':'var(--red)';
+    const score=t.signal_score!=null?t.signal_score.toFixed(3):'—';
+    const scoreCol=t.signal_score>=0.65?'var(--green)':t.signal_score>=0.45?'var(--yellow)':'var(--red)';
+    const fng=t.fng_score!=null?t.fng_score:'—';
+    const fngLabel=t.fng_score<=25?'Fear':t.fng_score<=45?'Neutral':t.fng_score<=75?'Greed':'Extreme Greed';
+    const regimeIcon={trending_up:'↑',trending_down:'↓',ranging:'↔',volatile:'⚡'}[t.regime]||'?';
+
+    return`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table-row':'none'">
+      <td style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:10px 8px;white-space:nowrap">
+        <div>${openStr}</div>
+        <div style="font-size:10px;opacity:0.6">→ ${closeStr}</div>
+      </td>
+      <td style="padding:10px 8px">
+        <span style="font-weight:700;color:${pnl>=0?'var(--green)':'var(--red)'}">${pnl>=0?'WIN':'LOSS'}</span>
+        <div style="font-size:10px;color:${sessCol};font-family:var(--mono);margin-top:2px">${sess}</div>
+      </td>
+      <td style="padding:10px 8px;font-weight:700;font-family:var(--mono)">${t.symbol}
+        <div style="font-size:10px;color:var(--muted)">${t.side==='Buy'?'🟢 LONG':'🔴 SHORT'} ${t.leverage||'?'}x</div>
+      </td>
+      <td style="padding:10px 8px;font-family:var(--mono);font-size:12px">
+        <div>In: ${t.entry_price}</div>
+        <div style="opacity:0.6">Out: ${t.exit_price||'—'}</div>
+      </td>
+      <td style="padding:10px 8px;font-family:var(--mono);font-weight:700;color:${pnl>=0?'var(--green)':'var(--red)'}">
+        ${fmtPnl(pnl)}
+        <div style="font-size:10px;color:var(--muted)">${t.pnl_pct>=0?'+':''}${t.pnl_pct}%</div>
+      </td>
+      <td style="padding:10px 8px;font-family:var(--mono);font-size:11px;color:${rrCol}">${rrStr}</td>
+      <td style="padding:10px 8px;font-size:11px;color:${exitCol};font-family:var(--mono)">${exit.replace(/_/g,' ')}</td>
+      <td style="padding:10px 8px;font-family:var(--mono);font-size:11px;color:var(--muted)">$${balAfter[bKey]?balAfter[bKey].toFixed(4):'—'}</td>
+    </tr>
+    <tr style="display:none;background:var(--bg2)">
+      <td colspan="8" style="padding:12px 16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;font-family:var(--mono);font-size:11px">
+          <div><span style="color:var(--muted)">Duration</span><br><b>${t.duration||'—'}</b></div>
+          <div><span style="color:var(--muted)">Score</span><br><b style="color:${scoreCol}">${score}</b></div>
+          <div><span style="color:var(--muted)">Confluence</span><br><b>${t.confluence!=null?t.confluence:'—'}</b></div>
+          <div><span style="color:var(--muted)">Regime</span><br><b>${regimeIcon} ${t.regime||'—'}</b></div>
+          <div><span style="color:var(--muted)">4H Bias</span><br><b>${t.bias_4h||'—'}</b></div>
+          <div><span style="color:var(--muted)">F&G</span><br><b>${fng} <span style="color:var(--muted);font-size:10px">${fngLabel}</span></b></div>
+          <div><span style="color:var(--muted)">AI Votes</span><br><b>${t.ai_votes!=null?t.ai_votes:'—'}</b></div>
+          <div><span style="color:var(--muted)">AI Conf</span><br><b>${t.ai_confidence!=null?(t.ai_confidence*100).toFixed(0)+'%':'—'}</b></div>
+          <div><span style="color:var(--muted)">SL</span><br><b>${t.stop_loss||'—'}</b></div>
+          <div><span style="color:var(--muted)">TP</span><br><b>${t.take_profit||'—'}</b></div>
+          <div><span style="color:var(--muted)">Tier</span><br><b>${t.tier||'—'}</b></div>
+          <div><span style="color:var(--muted)">Qty × Lev</span><br><b>${t.quantity||'—'} × ${t.leverage||'?'}x</b></div>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -1124,16 +1177,41 @@ function renderTradeGroups(trades){
   sortedKeys.forEach(key=>{
     const g=groups[key];
     html+=`<div class="month-header"><span>${g.label} — ${g.trades.length} trade</span><span class="month-pnl ${g.pnl>=0?'g':'r'}">${fmtPnl(g.pnl,4)}</span></div>
-    <table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Durasi</th><th>Score</th><th>Exit</th></tr></thead><tbody>`;
+      <table class="tbl"><thead><tr><th>Open</th><th>Symbol</th><th>Side</th><th>Entry→Exit</th><th>P&L</th><th>RR</th><th>Dur / Session</th><th>Score</th><th>Exit</th><th>Regime</th></tr></thead><tbody>`;
+    const sessColor2={Asia:'#4fc3f7',London:'#a5d6a7','New York':'#ffb74d','Late NY':'#ce93d8'};
+    const exitCol2={trailing_stop:'var(--green)',tp_hit:'var(--green)',breakeven:'var(--yellow)',sl_hit:'var(--red)',timeout:'var(--muted)',stale_trade:'var(--muted)'};
     g.trades.forEach(t=>{
-      html+=`<tr><td class="mono" style="font-weight:600">${t.symbol}</td>
+      const pnl=t.pnl||0;
+      const rr=t.actual_rr;
+      const rrStr=rr!=null?(rr>=0?`+${rr.toFixed(2)}R`:`${rr.toFixed(2)}R`):'—';
+      const rrCol=rr==null?'var(--muted)':rr>=1?'var(--green)':rr>=0?'var(--yellow)':'var(--red)';
+      const exit=t.exit_reason||t.notes||'—';
+      const sess=t.session||'—';
+      const openStr=t.opened_at?new Date(t.opened_at).toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'—';
+      const regimeIcon={trending_up:'↑',trending_down:'↓',ranging:'↔',volatile:'⚡'}[t.regime]||'?';
+      html+=`<tr style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table-row':'none'">
+        <td style="font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap">${openStr}</td>
+        <td class="mono" style="font-weight:700">${t.symbol}</td>
         <td><span class="badge ${t.side==='Buy'?'b-long':'b-short'}">${t.side==='Buy'?'LONG':'SHORT'}</span></td>
-        <td class="mono">${(t.entry_price||0).toFixed(4)}</td>
-        <td class="mono">${(t.exit_price||0).toFixed(4)}</td>
-        <td class="mono ${clsNum(t.pnl||0)}" style="font-weight:600">${fmtPnl(t.pnl||0)}</td>
-        <td style="color:var(--muted)">${dur(t.opened_at,t.closed_at)}</td>
-        <td class="mono" style="color:var(--muted)">${(t.signal_score||0).toFixed(3)}</td>
-        <td style="color:var(--muted);font-size:12px">${exitLabel(t.notes||'—')}</td></tr>`;
+        <td class="mono" style="font-size:11px">${t.entry_price||'—'}<br><span style="color:var(--muted)">${t.exit_price||'—'}</span></td>
+        <td class="mono ${clsNum(pnl)}" style="font-weight:700">${fmtPnl(pnl)}<br><span style="font-size:10px;opacity:0.7">${t.pnl_pct>=0?'+':''}${t.pnl_pct||0}%</span></td>
+        <td style="font-family:var(--mono);font-size:12px;color:${rrCol};font-weight:600">${rrStr}</td>
+        <td style="font-size:11px"><span style="color:${sessColor2[sess]||'var(--muted)'}">${sess}</span><br><span style="color:var(--muted)">${t.duration||'—'}</span></td>
+        <td class="mono" style="color:${parseFloat(t.signal_score)>=0.65?'var(--green)':parseFloat(t.signal_score)>=0.45?'var(--yellow)':'var(--red)'}">${(t.signal_score||0).toFixed(3)}</td>
+        <td style="font-size:11px;color:${exitCol2[exit]||'var(--muted)'};font-family:var(--mono)">${exit.replace(/_/g,' ')}</td>
+        <td style="font-size:11px;color:var(--muted)">${regimeIcon} ${(t.regime||'—').replace(/_/g,' ')}</td>
+      </tr>
+      <tr style="display:none;background:var(--bg2)"><td colspan="10" style="padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+        SL: <b style="color:var(--text)">${t.stop_loss||'—'}</b> &nbsp;|&nbsp;
+        TP: <b style="color:var(--text)">${t.take_profit||'—'}</b> &nbsp;|&nbsp;
+        Lev: <b style="color:var(--text)">${t.leverage||'—'}x</b> &nbsp;|&nbsp;
+        Confluence: <b style="color:var(--text)">${t.confluence!=null?t.confluence:'—'}</b> &nbsp;|&nbsp;
+        4H Bias: <b style="color:var(--text)">${t.bias_4h||'—'}</b> &nbsp;|&nbsp;
+        F&G: <b style="color:var(--text)">${t.fng_score!=null?t.fng_score:'—'}</b> &nbsp;|&nbsp;
+        AI Votes: <b style="color:var(--text)">${t.ai_votes!=null?t.ai_votes:'—'}</b> &nbsp;|&nbsp;
+        AI Conf: <b style="color:var(--text)">${t.ai_confidence!=null?(t.ai_confidence*100).toFixed(0)+'%':'—'}</b> &nbsp;|&nbsp;
+        Tier: <b style="color:var(--text)">${t.tier||'—'}</b>
+      </td></tr>`;
     });
     html+=`</tbody></table>`;
   });
@@ -1198,33 +1276,113 @@ function renderJournalEntries(entries, narrativeMap){
   const jb = document.getElementById('journal-body');
   if(!jb) return;
   if(!entries.length){ jb.innerHTML=`<div style="color:var(--muted);font-size:12px">Tidak ada entry.</div>`; return; }
+  const sessionColor={Asia:'#4fc3f7',London:'#a5d6a7','New York':'#ffb74d','Late NY':'#ce93d8'};
+  const regimeIcon={trending_up:'↑ Trend Up',trending_down:'↓ Trend Down',ranging:'↔ Ranging',volatile:'⚡ Volatile'};
+  const exitColor={trailing_stop:'var(--green)',tp_hit:'var(--green)',breakeven:'var(--yellow)',sl_hit:'var(--red)',timeout:'var(--muted)',stale_trade:'var(--muted)'};
+
   jb.innerHTML=entries.map(e=>{
-    const outcome=(e.pnl||0)>=0?'WIN':'LOSS';
+    const pnl=e.pnl||0;
+    const outcome=pnl>=0?'WIN':'LOSS';
     const tag=(e.pattern_tag||'unknown').replace(/_/g,' ');
     const rc=e.root_cause||'';
-    const parts=rc.split('|').map(s=>s.trim());
     const fieldMap={};
-    parts.forEach(p=>{const eq=p.indexOf('=');if(eq>0)fieldMap[p.slice(0,eq).trim()]=p.slice(eq+1).trim();});
-    const regime=fieldMap['regime']||'unknown';
-    const regimeColor=regime==='unknown'?'var(--muted)':regime.includes('trend')?'var(--green)':'var(--blue)';
+    rc.split('|').forEach(p=>{const eq=p.indexOf('=');if(eq>0)fieldMap[p.slice(0,eq).trim()]=p.slice(eq+1).trim();});
+
+    // Prefer direct fields from enriched API, fallback to fieldMap
+    const sess=e.session||fieldMap['session']||'—';
+    const dur=e.duration||fieldMap['duration']||'—';
+    const regime=e.regime||fieldMap['regime']||'unknown';
+    const conf=e.confluence!=null?e.confluence:(fieldMap['confluence']||'—');
+    const score=e.signal_score!=null?e.signal_score.toFixed(3):(fieldMap['score']||'—');
+    const bias=e.bias_4h||fieldMap['bias_4h']||'—';
+    const fng=e.fng_score!=null?e.fng_score:(fieldMap['fng']||'—');
+    const rr=e.actual_rr!=null?e.actual_rr:null;
+    const aiVotes=e.ai_votes!=null?e.ai_votes:'—';
+    const aiConf=e.ai_confidence!=null?(e.ai_confidence*100).toFixed(0)+'%':'—';
+    const exit=e.exit_reason||e.notes||'—';
+    const lev=e.leverage||'—';
+    const tier=e.tier||'—';
+    const openDt=e.opened_at?new Date(e.opened_at):null;
+    const closeDt=e.closed_at?new Date(e.closed_at):null;
+    const openStr=openDt?openDt.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'—';
+    const closeStr=closeDt?closeDt.toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'—';
+
+    const sessCol=sessionColor[sess]||'var(--muted)';
+    const regimeCol=regime.includes('up')||regime.includes('down')?'var(--green)':'var(--blue)';
+    const exitCol=exitColor[exit]||'var(--muted)';
+    const scoreCol=parseFloat(score)>=0.65?'var(--green)':parseFloat(score)>=0.45?'var(--yellow)':'var(--red)';
+    const rrStr=rr!=null?(rr>=0?`+${rr.toFixed(2)}R`:`${rr.toFixed(2)}R`):'—';
+    const rrCol=rr==null?'var(--muted)':rr>=1?'var(--green)':rr>=0?'var(--yellow)':'var(--red)';
+
     const narr=narrativeMap[e.symbol];
     const narrativeHtml=narr&&narr.length?
-      `<div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:6px;border-left:2px solid var(--blue)">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:var(--mono);margin-bottom:8px">AI ANALYSIS</div>
+      `<div style="margin-top:12px;padding:14px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--blue)">
+        <div style="font-size:10px;color:var(--blue);letter-spacing:1.5px;font-family:var(--mono);margin-bottom:8px;font-weight:600">🤖 AI POST-MORTEM</div>
         <div style="font-size:12px;color:var(--text);line-height:1.9;font-family:var(--sans)">${narr[0].body.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
       </div>`:'';
-    return`<div style="padding:16px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <span class="badge ${outcome==='WIN'?'b-green':'b-red'}">${outcome} — ${e.symbol||'?'}</span>
-        <span class="badge b-gray">${tag}</span>
-        <span style="color:var(--muted);font-size:10px;margin-left:auto;font-family:var(--mono)">${e.analyzed_at?new Date(e.analyzed_at).toLocaleString('id-ID'):'—'}</span>
+
+    return`<div style="padding:18px 0;border-bottom:1px solid var(--border)">
+      <!-- Header row -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="badge ${outcome==='WIN'?'b-green':'b-red'}" style="font-size:12px;font-weight:700">${outcome}</span>
+        <span style="font-weight:700;font-size:14px;color:var(--text)">${e.symbol||'?'}</span>
+        <span style="font-size:12px;color:var(--muted)">${e.side==='Buy'?'🟢 LONG':'🔴 SHORT'} ${lev}x</span>
+        <span class="badge b-gray" style="font-size:10px">${tag}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)">${openStr} → ${closeStr}</span>
       </div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.8;font-family:var(--mono)">
-        regime: <b style="color:${regimeColor}">${regime}</b> &nbsp;|&nbsp;
-        confluence: <b style="color:var(--text)">${fieldMap['confluence']||'0'}</b> &nbsp;|&nbsp;
-        score: <b style="color:var(--text)">${fieldMap['score']||'—'}</b> &nbsp;|&nbsp;
-        pnl: <b style="color:${(e.pnl||0)>=0?'var(--green)':'var(--red)'}">${(e.pnl||0)>=0?'+':''}$${Math.abs(e.pnl||0).toFixed(4)}</b>
+
+      <!-- Key stats grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px">
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">P&L</div>
+          <div style="font-size:14px;font-weight:700;color:${pnl>=0?'var(--green)':'var(--red)'}">$${pnl>=0?'+':''}${Math.abs(pnl).toFixed(4)}</div>
+          <div style="font-size:10px;color:var(--muted)">${e.pnl_pct>=0?'+':''}${e.pnl_pct||'—'}%</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">RR ACTUAL</div>
+          <div style="font-size:14px;font-weight:700;color:${rrCol}">${rrStr}</div>
+          <div style="font-size:10px;color:var(--muted)">risk/reward</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">DURATION</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${dur}</div>
+          <div style="font-size:10px;color:${sessCol}">${sess} session</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">SIGNAL</div>
+          <div style="font-size:14px;font-weight:700;color:${scoreCol}">${score}</div>
+          <div style="font-size:10px;color:var(--muted)">${conf} confluence</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">REGIME</div>
+          <div style="font-size:12px;font-weight:700;color:${regimeCol}">${regimeIcon[regime]||regime}</div>
+          <div style="font-size:10px;color:var(--muted)">4H: ${bias}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">EXIT</div>
+          <div style="font-size:12px;font-weight:700;color:${exitCol}">${exit.replace(/_/g,' ')}</div>
+          <div style="font-size:10px;color:var(--muted)">${tier}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">F&G</div>
+          <div style="font-size:14px;font-weight:700;color:${fng<=25?'var(--red)':fng<=50?'var(--yellow)':'var(--green)'}">${fng}</div>
+          <div style="font-size:10px;color:var(--muted)">${fng<=25?'Fear':fng<=45?'Neutral':fng<=75?'Greed':'Ext Greed'}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:6px;padding:8px 10px">
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:3px">AI VOTES</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${aiVotes}</div>
+          <div style="font-size:10px;color:var(--muted)">conf: ${aiConf}</div>
+        </div>
       </div>
+
+      <!-- Entry/Exit prices -->
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:10px">
+        Entry: <b style="color:var(--text)">${e.entry_price||'—'}</b> &nbsp;→&nbsp;
+        Exit: <b style="color:var(--text)">${e.exit_price||'—'}</b> &nbsp;|&nbsp;
+        SL: <b style="color:var(--red)">${e.stop_loss||'—'}</b> &nbsp;|&nbsp;
+        TP: <b style="color:var(--green)">${e.take_profit||'—'}</b>
+      </div>
+
       ${narrativeHtml}
     </div>`;
   }).join('');
