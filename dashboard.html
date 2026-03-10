@@ -1399,9 +1399,7 @@ function renderNews(){
 let ws, wsRetry=0;
 
 function wsConnect(){
-  const proto = location.protocol==='https:' ? 'wss' : 'ws';
-  const host  = new URL(API).hostname;
-  ws = new WebSocket(`${proto}://${host}:8081/ws`);
+  ws = new WebSocket('ws://45.32.118.44:8081/ws');
 
   ws.onopen = ()=>{
     wsRetry=0;
