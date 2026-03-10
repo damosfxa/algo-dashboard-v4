@@ -644,9 +644,9 @@ function updateOverview(s,trData){
   dpEl.className=`card-val ${clsNum(dpnl)}`;
 
   const tpEl=document.getElementById('o-tpnl');
-  tpEl.textContent=fmtPnl(tpnl+unreal);
-  tpEl.className=`card-val ${clsNum(tpnl+unreal)}`;
-  const pnlPct=initBal?((tpnl+unreal)/initBal*100):0;
+  tpEl.textContent=fmtPnl(tpnl);
+  tpEl.className=`card-val ${clsNum(tpnl)}`;
+  const pnlPct=initBal?((tpnl)/initBal*100):0;
   set('o-tpnl-sub',`${pnlPct.toFixed(2)}% from initial`);
 
   const wrEl=document.getElementById('o-wr');
