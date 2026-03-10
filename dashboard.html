@@ -1395,10 +1395,111 @@ function renderNews(){
   }).join('');
 }
 
-// Start: full refresh every 15s, positions every 5s
+// ── WebSocket Realtime ──────────────────────────────
+let ws, wsRetry=0;
+
+function wsConnect(){
+  const proto = location.protocol==='https:' ? 'wss' : 'ws';
+  const host  = new URL(API).hostname;
+  ws = new WebSocket(`${proto}://${host}:8081/ws`);
+
+  ws.onopen = ()=>{
+    wsRetry=0;
+    console.log('✅ WS connected');
+  };
+
+  ws.onmessage = (e)=>{
+    try{
+      const d = JSON.parse(e.data);
+      if(d.type !== 'tick') return;
+
+      // Balance
+      set('o-bal',  '$'+d.balance.toFixed(4));
+      set('tb-bal', '$'+d.balance.toFixed(4));
+
+      // Daily PnL
+      const dpEl = document.getElementById('o-dpnl');
+      if(dpEl){ dpEl.textContent=fmtPnl(d.daily_pnl); dpEl.className=`card-val ${clsNum(d.daily_pnl)}`; }
+
+      // Total PnL
+      const tpEl = document.getElementById('o-tpnl');
+      if(tpEl){ tpEl.textContent=fmtPnl(d.total_pnl); tpEl.className=`card-val ${clsNum(d.total_pnl)}`; }
+
+      // Win rate
+      const wrEl = document.getElementById('o-wr');
+      if(wrEl){ wrEl.textContent=d.win_rate.toFixed(1)+'%'; wrEl.className=`card-val ${d.win_rate>=55?'g':d.win_rate>=40?'y':'r'}`; }
+
+      // Drawdown
+      const ddEl = document.getElementById('o-dd');
+      if(ddEl){ ddEl.textContent=d.drawdown.toFixed(2)+'%'; ddEl.className=`card-val ${d.drawdown<15?'g':d.drawdown<25?'y':'r'}`; }
+
+      // F&G
+      const fngEl = document.getElementById('o-fng');
+      if(fngEl){ fngEl.textContent=d.fng; fngEl.className=`intel-val ${d.fng<=25?'r':d.fng<=40?'y':'g'}`; }
+      const fngLbl = document.getElementById('o-fng-label');
+      if(fngLbl){ fngLbl.textContent=fngText(d.fng); }
+
+      // Bot status dot
+      const dot = document.getElementById('bot-dot');
+      const lbl = document.getElementById('bot-label');
+      if(dot && lbl){
+        dot.className = d.is_running ? 'pulse' : 'pulse off';
+        lbl.textContent = d.is_running ? 'Running' : 'Paused';
+      }
+
+      // Positions — re-render realtime dari WS data
+      if(d.positions && d.positions.length > 0){
+        // Map WS format ke format yang dimengerti renderPosRow
+        const mapped = d.positions.map(p=>({
+          symbol:         p.symbol,
+          side:           p.side,
+          entry_price:    p.entry,
+          current_price:  p.current,
+          unrealized_pnl: p.pnl,
+          stop_loss:      p.sl,
+          take_profit:    p.tp,
+          be_done:        p.be_done,
+          trailing_sl:    0,
+          opened_at:      null,
+        }));
+
+        // Update overview table
+        const obody = document.getElementById('o-pos-body');
+        if(obody) obody.innerHTML = mapped.map(p=>renderPosRow(p,false)).join('');
+
+        // Update positions page table
+        const pbody = document.getElementById('p-body');
+        if(pbody) pbody.innerHTML = mapped.map(p=>renderPosRow(p,true)).join('');
+
+        // Update unrealized PnL card
+        const unreal = d.positions.reduce((a,p)=>a+p.pnl,0);
+        const pu = document.getElementById('p-unreal');
+        if(pu){ pu.textContent=`$${unreal.toFixed(4)}`; pu.className=`card-val ${clsNum(unreal)}`; }
+
+        set('o-pos-count', `${d.positions.length}/1`);
+        set('p-count', `${d.positions.length}/1`);
+      }
+
+      // last update
+      document.getElementById('last-upd').textContent='upd '+new Date().toTimeString().slice(0,5);
+
+    }catch(err){ console.warn('WS parse error', err); }
+  };
+
+  ws.onclose = ()=>{
+    wsRetry++;
+    const delay = Math.min(1000 * wsRetry, 10000);
+    console.warn(`WS closed, retry in ${delay}ms`);
+    setTimeout(wsConnect, delay);
+  };
+
+  ws.onerror = ()=>{ ws.close(); };
+}
+
+// Start
 fetchAll();
-setInterval(fetchAll,15000);
-setInterval(fetchPositions,5000);
+setInterval(fetchAll, 30000);   // full refresh tiap 30s (fallback)
+wsConnect();                     // realtime via WebSocket
 </script>
 </body>
 </html>
