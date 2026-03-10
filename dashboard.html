@@ -1457,8 +1457,8 @@ function wsConnect(){
           stop_loss:      p.sl,
           take_profit:    p.tp,
           be_done:        p.be_done,
-          trailing_sl:    0,
-          opened_at:      null,
+          trailing_sl:    p.trailing_sl || 0,
+          opened_at:      p.opened_at || null,
         }));
 
         // Update overview table
