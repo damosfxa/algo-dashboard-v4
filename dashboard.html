@@ -1237,7 +1237,42 @@ async function fetchJournalFull(){
         }
       });
     }
-    _allJournalEntries = (pm&&pm.recent_analyses)||[];
+    // Merge post-mortem dengan enriched trade data dari /api/trades
+    const tradeData = await api('trades?limit=100').catch(()=>null);
+    const tradeMap = {};
+    if(tradeData&&tradeData.trades){
+      tradeData.trades.forEach(t=>{ tradeMap[t.symbol] = t; });
+    }
+    const pmEntries = (pm&&pm.recent_analyses)||[];
+    // Enrich pm entries dengan field dari /api/trades
+    _allJournalEntries = pmEntries.map(e=>{
+      const t = tradeMap[e.symbol] || {};
+      return {
+        ...e,
+        session:      t.session      || e.session,
+        duration:     t.duration     || e.duration,
+        actual_rr:    t.actual_rr    != null ? t.actual_rr : null,
+        leverage:     t.leverage     || null,
+        tier:         t.tier         || null,
+        confluence:   t.confluence   != null ? t.confluence : null,
+        fng_score:    t.fng_score    != null ? t.fng_score : null,
+        regime:       t.regime       || null,
+        bias_4h:      t.bias_4h      || null,
+        ai_votes:     t.ai_votes     != null ? t.ai_votes : null,
+        ai_confidence:t.ai_confidence!= null ? t.ai_confidence : null,
+        signal_score: t.signal_score != null ? t.signal_score : e.signal_score,
+        entry_price:  t.entry_price  || null,
+        exit_price:   t.exit_price   || null,
+        stop_loss:    t.stop_loss    || null,
+        take_profit:  t.take_profit  || null,
+        opened_at:    t.opened_at    || null,
+        closed_at:    t.closed_at    || null,
+        exit_reason:  t.exit_reason  || e.notes,
+        pnl:          t.pnl          != null ? t.pnl : e.pnl,
+        pnl_pct:      t.pnl_pct      != null ? t.pnl_pct : null,
+        side:         t.side         || (e.pnl>=0?'Buy':'Sell'),
+      };
+    });
 
     // Populate month dropdown
     const months = [...new Set(_allJournalEntries.map(e=>{
