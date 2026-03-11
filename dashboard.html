@@ -1411,12 +1411,42 @@ function renderJournalEntries(entries, narrativeMap){
       </div>
 
       <!-- Entry/Exit prices -->
-      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:10px">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px">
         Entry: <b style="color:var(--text)">${e.entry_price||'—'}</b> &nbsp;→&nbsp;
         Exit: <b style="color:var(--text)">${e.exit_price||'—'}</b> &nbsp;|&nbsp;
         SL: <b style="color:var(--red)">${e.stop_loss||'—'}</b> &nbsp;|&nbsp;
         TP: <b style="color:var(--green)">${e.take_profit||'—'}</b>
       </div>
+
+      <!-- Reasoning breakdown -->
+      ${(e.entry_reason||e.sl_reason||e.tp_reason)?`
+      <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1.5px;margin-bottom:10px;font-weight:600">📋 TRADE REASONING</div>
+        ${e.entry_reason?`<div style="margin-bottom:8px;font-size:11px"><span style="color:var(--muted);font-family:var(--mono)">ENTRY: </span><span style="color:var(--text)">${e.entry_reason}</span></div>`:''}
+        ${e.sl_reason?`<div style="margin-bottom:8px;font-size:11px"><span style="color:var(--red);font-family:var(--mono)">SL: </span><span style="color:var(--text)">${e.sl_reason}</span></div>`:''}
+        ${e.tp_reason?`<div style="font-size:11px"><span style="color:var(--green);font-family:var(--mono)">TP: </span><span style="color:var(--text)">${e.tp_reason}</span></div>`:''}
+      </div>`:''}
+
+      <!-- Trail log -->
+      ${(()=>{
+        try{
+          const tl = typeof e.trail_log==='string'?JSON.parse(e.trail_log):e.trail_log;
+          if(!tl||!tl.length) return '';
+          return `<div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:12px;border:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1.5px;margin-bottom:10px;font-weight:600">📈 TRAILING STOP LOG (${tl.length} moves)</div>
+            ${tl.map((t,i)=>`
+              <div style="display:flex;gap:12px;font-size:11px;font-family:var(--mono);padding:5px 0;border-bottom:1px solid var(--border);opacity:${1-i*0.08}">
+                <span style="color:var(--muted);min-width:140px">${t.ts?new Date(t.ts).toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}):'—'}</span>
+                <span style="color:var(--muted)">SL:</span>
+                <span style="color:var(--red)">${t.from}</span>
+                <span style="color:var(--muted)">→</span>
+                <span style="color:var(--green)">${t.to}</span>
+                <span style="color:var(--muted)">@ price ${t.price}</span>
+                <span style="color:var(--yellow);margin-left:auto">+${t.pnl_pct}% | ${t.phase}</span>
+              </div>`).join('')}
+          </div>`;
+        }catch(e){return '';}
+      })()}
 
       ${narrativeHtml}
     </div>`;
